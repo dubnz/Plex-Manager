@@ -42,6 +42,7 @@
 
 ## Phase 5 - Packaging and Deploy
 
+- [x] Community Scripts-style Proxmox host installer that creates the LXC and invokes the in-container install.
 - [x] Native LXC install script with Python venv, Vite build, SQLite data directory, and `systemd` service.
 - [x] `.env.example` documenting required variables.
 - [x] Initial LXC install script.

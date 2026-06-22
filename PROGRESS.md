@@ -43,6 +43,7 @@ Status: Implemented.
 
 Completed:
 
+- Added `scripts/proxmox-create-lxc.sh`, a Proxmox-host installer with default/advanced/unattended modes, CTID/storage/bridge handling, Debian template download, LXC creation, and in-container install.
 - Removed Docker as the default runtime path.
 - Updated `.env.example` to store SQLite data under `/var/lib/plex-manager`.
 - Reworked `scripts/install-lxc.sh` to install Node.js 22, Python venv dependencies, built frontend assets, `/etc/plex-manager.env`, and a `plex-manager.service` unit.
@@ -51,11 +52,13 @@ Completed:
 
 Next step:
 
-- Run `scripts/install-lxc.sh` inside the actual LXC after cloning the repo, fill `/etc/plex-manager.env`, then start `plex-manager.service`.
+- Run `scripts/proxmox-create-lxc.sh` on the Proxmox host, fill `/etc/plex-manager.env` inside the created LXC, then start `plex-manager.service`.
 
 Verification:
 
+- `bash -n scripts/proxmox-create-lxc.sh`: passed.
 - `bash -n scripts/install-lxc.sh`: passed.
+- `scripts/proxmox-create-lxc.sh --help`: passed.
 - `.venv/bin/python -m pytest backend/tests`: 5 passed.
 - `npm --prefix frontend run test -- --run`: 3 passed.
 - `npm --prefix frontend run build`: passed.

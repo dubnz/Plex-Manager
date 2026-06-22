@@ -24,16 +24,18 @@ if ! command -v node >/dev/null 2>&1 || [[ "$(node -v | sed 's/^v//' | cut -d. -
   apt-get install -y nodejs
 fi
 
-if [[ -n "$REPO_URL" && ! -d "$APP_DIR/.git" ]]; then
+if [[ -n "$REPO_URL" && ! -d "$APP_DIR/.git" && ! -f "$APP_DIR/requirements.txt" ]]; then
   git clone "$REPO_URL" "$APP_DIR"
-elif [[ ! -d "$APP_DIR/.git" ]]; then
-  echo "Clone the repo to $APP_DIR first, or rerun with REPO_URL=https://..." >&2
+elif [[ ! -f "$APP_DIR/requirements.txt" || ! -f "$APP_DIR/frontend/package.json" || ! -f "$APP_DIR/scripts/install-lxc.sh" ]]; then
+  echo "Clone or copy the Plex Manager repo to $APP_DIR first, or rerun with REPO_URL=https://..." >&2
   exit 1
 fi
 
 cd "$APP_DIR"
-git config --global --add safe.directory "$APP_DIR" >/dev/null 2>&1 || true
-git pull --ff-only || true
+if [[ -d "$APP_DIR/.git" ]]; then
+  git config --global --add safe.directory "$APP_DIR" >/dev/null 2>&1 || true
+  git pull --ff-only || true
+fi
 
 mkdir -p "$DATA_DIR"
 
