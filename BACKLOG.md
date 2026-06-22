@@ -5,7 +5,7 @@
 - [ ] Confirm exact Plex library section IDs/names via `GET /library/sections` on the target Plex server; record only "Movies" and "TV Shows" or actual matching names, explicitly excluding Movies2/TV2/others.
 - [ ] Inventory available auth: Plex token, Tautulli API key, Sonarr API key, Radarr API key, Seerr API key.
 - [ ] Determine whether Seerr is Overseerr or Jellyseerr and whether the old Overseerr LXC is queryable via HTTP or only via SQLite DB.
-- [x] Decide deployment target shape: Docker Compose inside LXC for the fewest app-specific manual steps.
+- [x] Decide deployment target shape: native app inside a Proxmox LXC with a `systemd` service.
 
 ## Phase 1 - API Clients
 
@@ -42,8 +42,7 @@
 
 ## Phase 5 - Packaging and Deploy
 
-- [x] Dockerfile and docker-compose.yml.
+- [x] Native LXC install script with Python venv, Vite build, SQLite data directory, and `systemd` service.
 - [x] `.env.example` documenting required variables.
 - [x] Initial LXC install script.
-- [ ] Final DEPLOY.md after host-specific Proxmox/LXC flags and Docker install method are re-verified.
-
+- [x] DEPLOY.md updated for native Proxmox LXC deployment without Docker.

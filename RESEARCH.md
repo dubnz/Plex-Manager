@@ -14,11 +14,12 @@ Date: 2026-06-22
 ## Deployment references
 
 - Proxmox `pct` manual: https://pve.proxmox.com/pve-docs/pct.1.html
+- Proxmox Linux Container docs: https://pve.proxmox.com/wiki/Linux_Container
 - Proxmox VE Helper-Scripts repository: https://github.com/community-scripts/ProxmoxVE
+- NodeSource Node.js binary distributions: https://github.com/nodesource/distributions
 
 ## Notes
 
 - Only read-only API operations and dry-run planning are implemented in this slice.
 - Real Seerr unavailable/delete operations remain intentionally unimplemented until `SEERR_KIND` is explicit and a successful authenticated read is verified.
-- Final Proxmox host commands in DEPLOY.md are intentionally conservative and must be checked on the target host before use.
-
+- Deployment is native LXC plus `systemd`, not Docker-in-LXC. Proxmox host commands in DEPLOY.md are intentionally conservative and must be checked on the target host before use.

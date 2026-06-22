@@ -9,12 +9,12 @@ Status: First non-destructive slice implemented.
 Completed:
 
 - Created architecture, backlog, progress, assumptions, research, and deploy docs.
-- Chose FastAPI + React/Vite + SQLite + Docker Compose inside an LXC.
+- Chose FastAPI + React/Vite + SQLite + native `systemd` deployment inside a Proxmox LXC.
 - Added thin API client modules with retry/backoff and official-source comments.
 - Added local SQLite schema plus demo seed data.
 - Added media list and dry-run delete API endpoints.
 - Added dashboard UI with Movies/TV tabs, filters, batch selection, CSV export, and delete preview.
-- Added Docker Compose packaging and initial LXC install script.
+- Added native LXC install script that builds the frontend, installs the backend venv, writes `/etc/plex-manager.env`, and creates a `systemd` service.
 - Verified backend tests, frontend tests, frontend build, desktop UI load, dry-run preview interaction, and mobile layout.
 
 Blockers:
@@ -34,3 +34,28 @@ Verification:
 - Direct API probe for `/api/media?library=Movies`: returned 2 backend-seeded demo rows.
 - Playwright fallback was used because the in-app browser control was not available. Desktop 1440x980 loaded the Movies table from the backend and produced a delete dry-run preview after selecting a row.
 - Mobile 390x900 had no page-level horizontal overflow; the table scrolls within its panel.
+
+## 2026-06-22
+
+Task: Switch deployment from Docker-in-LXC to native LXC.
+
+Status: Implemented.
+
+Completed:
+
+- Removed Docker as the default runtime path.
+- Updated `.env.example` to store SQLite data under `/var/lib/plex-manager`.
+- Reworked `scripts/install-lxc.sh` to install Node.js 22, Python venv dependencies, built frontend assets, `/etc/plex-manager.env`, and a `plex-manager.service` unit.
+- Updated deployment docs and backlog to describe a native Proxmox LXC service.
+- Verified installer shell syntax, backend tests, frontend tests, and frontend build.
+
+Next step:
+
+- Run `scripts/install-lxc.sh` inside the actual LXC after cloning the repo, fill `/etc/plex-manager.env`, then start `plex-manager.service`.
+
+Verification:
+
+- `bash -n scripts/install-lxc.sh`: passed.
+- `.venv/bin/python -m pytest backend/tests`: 5 passed.
+- `npm --prefix frontend run test -- --run`: 3 passed.
+- `npm --prefix frontend run build`: passed.
