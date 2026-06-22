@@ -62,3 +62,28 @@ Verification:
 - `.venv/bin/python -m pytest backend/tests`: 5 passed.
 - `npm --prefix frontend run test -- --run`: 3 passed.
 - `npm --prefix frontend run build`: passed.
+
+## 2026-06-22
+
+Task: Prepare public GitHub repository publishing.
+
+Status: In progress.
+
+Completed:
+
+- Scanned the working tree for `.env` files, SQLite databases, private keys, and common secret/token patterns.
+- Added README with public install instructions and a reminder not to commit real credentials.
+- Updated deployment docs and Proxmox host installer defaults to use `https://github.com/dubnz/Plex-Manager`.
+- Created public GitHub repository `dubnz/Plex-Manager` and configured it as `origin`.
+
+Public-safety note:
+
+- No real credentials, databases, `.env`, or private key files were found. The only secret-related hits are placeholders in `.env.example`, demo values in config, and code identifiers.
+
+Verification:
+
+- `bash -n scripts/proxmox-create-lxc.sh && bash -n scripts/install-lxc.sh`: passed.
+- `scripts/proxmox-create-lxc.sh --help`: passed.
+- `.venv/bin/python -m pytest backend/tests`: 5 passed.
+- `npm --prefix frontend run test -- --run`: 3 passed.
+- `npm --prefix frontend run build`: passed.

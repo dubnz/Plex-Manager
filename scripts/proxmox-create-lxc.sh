@@ -8,6 +8,7 @@ set -Eeuo pipefail
 APP="Plex Manager"
 APP_SLUG="plex-manager"
 APP_DIR="${APP_DIR:-/opt/plex-manager}"
+DEFAULT_REPO_URL="${DEFAULT_REPO_URL:-https://github.com/dubnz/Plex-Manager.git}"
 REPO_URL="${REPO_URL:-}"
 DEBIAN_VERSION="${DEBIAN_VERSION:-12}"
 LOG="/tmp/${APP_SLUG}-create-$(date +%Y%m%d-%H%M%S).log"
@@ -252,7 +253,8 @@ Usage:
   ./scripts/proxmox-create-lxc.sh
 
 Run from a checked-out repo on the Proxmox host, or set REPO_URL when running
-from a raw one-liner.
+from a raw one-liner. If neither is available, the script defaults to:
+  $DEFAULT_REPO_URL
 
 Common variables:
   REPO_URL=<repo-url>             Clone this repo inside the CT instead of copying local source
@@ -287,6 +289,10 @@ collect_settings() {
   suggested_ctid="${var_ctid:-$(next_ctid)}"
   bridge="${var_bridge:-$(default_bridge)}"
   source_dir="$(local_source_dir || true)"
+
+  if [[ -z "$REPO_URL" && -z "$source_dir" ]]; then
+    REPO_URL="$DEFAULT_REPO_URL"
+  fi
 
   if [[ -z "$REPO_URL" && -z "$source_dir" ]]; then
     die "Set REPO_URL=https://... or run this script from a checked-out Plex Manager repo."

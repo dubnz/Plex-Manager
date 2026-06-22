@@ -27,15 +27,15 @@ Run this on the Proxmox host as `root`.
 From a checked-out repo:
 
 ```bash
-git clone <repo-url> /root/plex-manager
+git clone https://github.com/dubnz/Plex-Manager.git /root/plex-manager
 cd /root/plex-manager
 ./scripts/proxmox-create-lxc.sh
 ```
 
-One-line style, after this repo has a reachable raw URL:
+One-line style:
 
 ```bash
-REPO_URL=<repo-url> bash -c "$(curl -fsSL <raw-proxmox-create-lxc.sh-url>)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/dubnz/Plex-Manager/master/scripts/proxmox-create-lxc.sh)"
 ```
 
 Advanced mode:
@@ -47,7 +47,6 @@ var_setup=advanced ./scripts/proxmox-create-lxc.sh
 Unattended example:
 
 ```bash
-REPO_URL=<repo-url> \
 var_unattended=yes \
 var_ctid=120 \
 var_hostname=plex-manager \
@@ -57,7 +56,7 @@ var_disk=8 \
 var_storage=local-lvm \
 var_template_storage=local \
 var_bridge=vmbr0 \
-bash -c "$(curl -fsSL <raw-proxmox-create-lxc.sh-url>)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/dubnz/Plex-Manager/master/scripts/proxmox-create-lxc.sh)"
 ```
 
 The host installer creates the LXC, starts it, installs Plex Manager inside it, enables `plex-manager.service`, and then prints the next steps. It does not start the app with placeholder credentials.
@@ -90,7 +89,7 @@ Inside the LXC:
 ```bash
 apt update
 apt install -y ca-certificates curl git
-git clone <repo-url> /opt/plex-manager
+git clone https://github.com/dubnz/Plex-Manager.git /opt/plex-manager
 cd /opt/plex-manager
 ./scripts/install-lxc.sh
 nano /etc/plex-manager.env
