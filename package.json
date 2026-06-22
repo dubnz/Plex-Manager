@@ -1,0 +1,17 @@
+{
+  "name": "plex-manager",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Self-hosted Plex library operations dashboard.",
+  "scripts": {
+    "dev:web": "npm --prefix frontend run dev",
+    "build:web": "npm --prefix frontend run build",
+    "test:web": "npm --prefix frontend run test -- --run",
+    "test:api": "pytest backend/tests",
+    "test": "npm run test:web && npm run test:api"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+

@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+import sqlite3
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+
+from app import db
+from app.core.config import Settings
+from app.models import DeleteDryRunPlan, DeleteDryRunRequest, MediaListResponse, StatusResponse
+from app.services.cleanup import build_delete_dry_run_plan
+from app.services.status import build_integration_status
+
+
+router = APIRouter(prefix="/api")
+
+
+def get_settings(request: Request) -> Settings:
+    return request.app.state.settings
+
+
+def get_connection(request: Request) -> sqlite3.Connection:
+    return request.app.state.db
+
+
+@router.get("/status", response_model=StatusResponse)
+def status(settings: Settings = Depends(get_settings)) -> StatusResponse:
+    return StatusResponse(
+        demo_mode=settings.demo_mode,
+        integrations=build_integration_status(settings),
+        sync_interval_minutes=settings.sync_interval_minutes,
+        selected_libraries=list(settings.plex_library_names),
+    )
+
+
+@router.get("/media", response_model=MediaListResponse)
+def media(
+    library: str | None = Query(default=None),
+    settings: Settings = Depends(get_settings),
+    conn: sqlite3.Connection = Depends(get_connection),
+) -> MediaListResponse:
+    if library and library not in settings.plex_library_names:
+        raise HTTPException(status_code=400, detail=f"Library '{library}' is not selected for Plex Manager.")
+    items = db.list_media(conn, library=library)
+    return MediaListResponse(items=items, total=len(items), demo_mode=settings.demo_mode)
+
+
+@router.post("/actions/delete/dry-run", response_model=DeleteDryRunPlan)
+def delete_dry_run(
+    request: DeleteDryRunRequest,
+    conn: sqlite3.Connection = Depends(get_connection),
+) -> DeleteDryRunPlan:
+    items = db.get_media_by_ids(conn, request.media_item_ids)
+    found_ids = {item.id for item in items}
+    missing_ids = [item_id for item_id in request.media_item_ids if item_id not in found_ids]
+    if missing_ids:
+        raise HTTPException(status_code=404, detail=f"Unknown media item ids: {missing_ids}")
+    return build_delete_dry_run_plan(items, delete_files=request.delete_files)
+
+@router.post("/sync/run")
+def sync_run(settings: Settings = Depends(get_settings)) -> dict[str, str]:
+    if settings.demo_mode:
+        return {"status": "demo", "detail": "Demo data is already seeded; no external sync was run."}
+    return {
+        "status": "blocked",
+        "detail": "Read-only discovery must verify all credentials before background sync is enabled.",
+    }
+
