@@ -22,14 +22,13 @@ import type {
   ConnectionValidationResponse,
   DeleteDryRunPlan,
   FilterState,
-  LibraryName,
   MediaItem,
   ServiceConfigResponse,
   ServiceConfigUpdate,
   StatusResponse
 } from "./types";
 
-const LIBRARIES: LibraryName[] = ["Movies", "TV Shows"];
+const FALLBACK_LIBRARIES = ["Movies", "TV Shows"];
 
 type View = "media" | "settings";
 
@@ -50,7 +49,7 @@ interface ConfigForm {
 }
 
 export function App() {
-  const [activeLibrary, setActiveLibrary] = useState<LibraryName>("Movies");
+  const [activeLibrary, setActiveLibrary] = useState("Movies");
   const [activeView, setActiveView] = useState<View>("media");
   const [status, setStatus] = useState<StatusResponse>(mockStatus);
   const [items, setItems] = useState<MediaItem[]>(mockMedia);
@@ -64,16 +63,20 @@ export function App() {
   });
   const [apiNote, setApiNote] = useState("Loading API status...");
   const [syncMessage, setSyncMessage] = useState("");
+  const libraries = status.selected_libraries.length ? status.selected_libraries : FALLBACK_LIBRARIES;
 
   async function loadMedia(library = activeLibrary) {
     try {
       const [nextStatus, media] = await Promise.all([getStatus(), getMedia(library)]);
-      setStatus(nextStatus);
-      setItems(media.items);
-      setApiNote(nextStatus.demo_mode ? "Demo mode from backend" : "Connected to backend cache");
+          setStatus(nextStatus);
+          setItems(media.items);
+          setApiNote(nextStatus.demo_mode ? "Demo mode from backend" : "Connected to backend cache");
+          if (!nextStatus.selected_libraries.includes(library) && nextStatus.selected_libraries.length > 0) {
+            setActiveLibrary(nextStatus.selected_libraries[0]);
+          }
     } catch {
       setStatus(mockStatus);
-      setItems(mockMedia.filter((item) => item.library === library));
+          setItems(mockMedia.filter((item) => item.library === library));
       setApiNote("API unavailable; using local demo data");
     }
   }
@@ -154,7 +157,7 @@ export function App() {
         </div>
 
         <nav className="library-tabs" aria-label="Navigation">
-          {LIBRARIES.map((library) => (
+          {libraries.map((library) => (
             <button
               key={library}
               className={activeView === "media" && library === activeLibrary ? "active" : ""}

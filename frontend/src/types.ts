@@ -1,4 +1,3 @@
-export type LibraryName = "Movies" | "TV Shows";
 export type MediaType = "movie" | "show";
 export type IntegrationState = "ok" | "demo" | "missing" | "error" | "blocked";
 
