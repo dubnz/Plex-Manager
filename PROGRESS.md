@@ -109,18 +109,21 @@ Completed:
 - Loaded real service settings into `/var/lib/plex-manager/config.json` without committing or printing secrets.
 - Discovered the exact selected Plex sections as `Movies` and `TV`.
 - Updated the frontend to use configured Plex library names instead of the previous hard-coded `Movies`/`TV Shows` tabs.
+- Added optional legacy Overseerr request-source configuration for read-only requester history.
+- Enriched sync data from Tautulli, Radarr, Sonarr, Plex, current Jellyseerr, and legacy Overseerr.
+- Made the media table horizontally scrollable on desktop so Status and Size remain reachable.
 
 Verification:
 
 - `curl http://192.168.158.160:8000/api/status`: returns `demo_mode=false` and selected libraries `Movies`, `TV`.
 - `curl http://192.168.158.160:8000/api/config`: returns non-secret config metadata.
-- `POST /api/config/validate`: returns OK for Plex, Tautulli, Sonarr, Radarr, and Seerr.
+- `POST /api/config/validate`: returns OK for Plex, Tautulli, Sonarr, Radarr, Seerr, and Legacy Overseerr.
 - `POST /api/sync/run`: synced 856 Plex items from selected libraries with no warnings.
-- `GET /api/media?library=Movies`: returns 733 rows.
-- `GET /api/media?library=TV`: returns 123 rows.
-- Browser verification against `http://192.168.158.160:8000`: page title is `Plex Manager`; nav shows `Movies`, `TV`, and `Settings`; no `TV Shows` tab is rendered; `TV` loads 123 rows; Settings loads five stored-key states; Test connections returns five OK rows; Sync displays `Synced 856 Plex item(s) from selected libraries.`; console warnings/errors are empty.
-- CT 100 repo was fast-forwarded to `7eb1262`; local and GitHub `master` match.
+- `GET /api/media?library=Movies`: returns 733 rows; 733 have size, 190 have play/history fields, 726 have requester data.
+- `GET /api/media?library=TV`: returns 123 rows; 114 have Sonarr size data, 57 have play/history fields, 108 have requester data.
+- Browser verification against `http://192.168.158.160:8000`: page title is `Plex Manager`; nav shows `Movies`, `TV`, and `Settings`; Movies and TV tables include Plays, Last played, Requested by, Watched by, Status, and Size columns; table overflow is horizontally scrollable; Settings loads six stored-key states; Test connections returns six OK rows; console warnings/errors are empty.
+- CT 100 repo was fast-forwarded to `bb26ffb`; local and GitHub `master` match.
 
 Next step:
 
-- Continue feature work from the verified LXC deployment, starting with safer cleanup/delete workflows and richer request/watch history where needed.
+- Continue feature work from the verified LXC deployment, starting with safer cleanup/delete workflows and any deeper per-user/per-episode history views needed beyond the current aggregate table.
