@@ -5,10 +5,20 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app import db
-from app.core.config import Settings
-from app.models import DeleteDryRunPlan, DeleteDryRunRequest, MediaListResponse, StatusResponse
+from app.core.config import Settings, load_settings
+from app.models import (
+    ConnectionValidationResponse,
+    DeleteDryRunPlan,
+    DeleteDryRunRequest,
+    MediaListResponse,
+    ServiceConfigResponse,
+    ServiceConfigUpdate,
+    StatusResponse,
+)
 from app.services.cleanup import build_delete_dry_run_plan
+from app.services.configuration import public_config, save_config
 from app.services.status import build_integration_status
+from app.services.validation import validate_connections
 
 
 router = APIRouter(prefix="/api")
@@ -30,6 +40,27 @@ def status(settings: Settings = Depends(get_settings)) -> StatusResponse:
         sync_interval_minutes=settings.sync_interval_minutes,
         selected_libraries=list(settings.plex_library_names),
     )
+
+
+@router.get("/config", response_model=ServiceConfigResponse)
+def config(settings: Settings = Depends(get_settings)) -> ServiceConfigResponse:
+    return public_config(settings)
+
+
+@router.put("/config", response_model=ServiceConfigResponse)
+def update_config(
+    update: ServiceConfigUpdate,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+) -> ServiceConfigResponse:
+    save_config(settings, update)
+    request.app.state.settings = load_settings()
+    return public_config(request.app.state.settings)
+
+
+@router.post("/config/validate", response_model=ConnectionValidationResponse)
+async def validate_config(settings: Settings = Depends(get_settings)) -> ConnectionValidationResponse:
+    return await validate_connections(settings)
 
 
 @router.get("/media", response_model=MediaListResponse)
@@ -64,4 +95,3 @@ def sync_run(settings: Settings = Depends(get_settings)) -> dict[str, str]:
         "status": "blocked",
         "detail": "Read-only discovery must verify all credentials before background sync is enabled.",
     }
-

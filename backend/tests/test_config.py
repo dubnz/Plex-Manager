@@ -19,6 +19,7 @@ def test_missing_env_fails_fast(monkeypatch: pytest.MonkeyPatch) -> None:
         "SEERR_KIND",
         "SEERR_URL",
         "SEERR_API_KEY",
+        "CONFIG_PATH",
     ):
         monkeypatch.delenv(key, raising=False)
 
@@ -31,4 +32,4 @@ def test_demo_mode_allows_missing_external_credentials(monkeypatch: pytest.Monke
     settings = load_settings()
     assert settings.demo_mode is True
     assert settings.plex_library_names == ("Movies", "TV Shows")
-
+    assert settings.config_path.name == "config.json"

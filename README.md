@@ -4,6 +4,8 @@ Plex Manager is a self-hosted media library operations dashboard for auditing a 
 
 The current build is intentionally non-destructive. It supports local cache data, filtering, batch selection, CSV export, and delete dry-run previews. Real destructive actions remain blocked until authenticated read checks and explicit confirmation flows are implemented.
 
+Service access can be configured from the web UI. Secrets are stored in the app config file (`CONFIG_PATH`, default `/var/lib/plex-manager/config.json`) and are never returned back to the browser.
+
 ## Deploy on Proxmox
 
 Run this on the Proxmox host as `root`:
@@ -16,10 +18,11 @@ Then enter the created container and configure credentials:
 
 ```bash
 pct enter <CTID>
-nano /etc/plex-manager.env
 systemctl start plex-manager
 systemctl status plex-manager --no-pager
 ```
+
+Open the web UI and use Settings to configure Plex, Tautulli, Sonarr, Radarr, and Seerr access.
 
 Open:
 
@@ -57,5 +60,4 @@ npm --prefix frontend run build
 
 ## Public Repository Safety
 
-Do not commit real `.env` files, SQLite databases, API keys, Plex tokens, or Proxmox host secrets. This repository includes only placeholder values in `.env.example`.
-
+Do not commit real `.env` files, runtime config JSON files, SQLite databases, API keys, Plex tokens, or Proxmox host secrets. This repository includes only placeholder values in `.env.example`.

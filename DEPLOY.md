@@ -9,6 +9,7 @@ Plex Manager runs directly inside a Debian/Ubuntu LXC container:
 - Python FastAPI backend in `/opt/plex-manager/.venv`
 - Built Vite frontend in `/opt/plex-manager/frontend/dist`
 - SQLite cache in `/var/lib/plex-manager/plex-manager.db`
+- Runtime service configuration in `/var/lib/plex-manager/config.json`
 - Environment file at `/etc/plex-manager.env`
 - `systemd` service named `plex-manager`
 
@@ -100,6 +101,7 @@ systemctl status plex-manager --no-pager
 ## Required production checks
 
 - `PLEX_MANAGER_DEMO_MODE=false`
+- `CONFIG_PATH=/var/lib/plex-manager/config.json`
 - `SEERR_KIND` is set to exactly `overseerr` or `jellyseerr`
 - Authenticated read-only calls succeed for Plex, Tautulli, Sonarr, Radarr, and Seerr
 - Plex library discovery records exact target sections and excludes similarly named libraries

@@ -5,3 +5,4 @@
 - The selected Plex libraries must be discovered from the target server. The app defaults to display names `Movies` and `TV Shows` in `.env.example`, but real startup should use `GET /library/sections` and persist exact IDs/names before sync.
 - Seerr is not assumed. The app requires `SEERR_KIND=overseerr` or `SEERR_KIND=jellyseerr`; real Seerr mutation work remains blocked until this is explicit.
 - Native service inside a Proxmox LXC is the deployment choice. Docker is intentionally not used.
+- Runtime service credentials can be configured from the web UI and stored under `/var/lib/plex-manager/config.json`, while `/etc/plex-manager.env` remains the bootstrap/default environment file.

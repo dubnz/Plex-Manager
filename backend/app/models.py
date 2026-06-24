@@ -76,3 +76,44 @@ class StatusResponse(BaseModel):
     sync_interval_minutes: int
     selected_libraries: list[str]
 
+
+class ServiceConfigResponse(BaseModel):
+    plex_url: str
+    plex_token_set: bool
+    plex_token_placeholder: bool
+    plex_library_names: list[str]
+    tautulli_url: str
+    tautulli_api_key_set: bool
+    tautulli_api_key_placeholder: bool
+    sonarr_url: str
+    sonarr_api_key_set: bool
+    sonarr_api_key_placeholder: bool
+    radarr_url: str
+    radarr_api_key_set: bool
+    radarr_api_key_placeholder: bool
+    seerr_kind: str
+    seerr_url: str
+    seerr_api_key_set: bool
+    seerr_api_key_placeholder: bool
+    sync_interval_minutes: int
+    config_path: str
+
+
+class ServiceConfigUpdate(BaseModel):
+    plex_url: str
+    plex_token: str | None = None
+    plex_library_names: list[str] = Field(min_length=1)
+    tautulli_url: str
+    tautulli_api_key: str | None = None
+    sonarr_url: str
+    sonarr_api_key: str | None = None
+    radarr_url: str
+    radarr_api_key: str | None = None
+    seerr_kind: Literal["overseerr", "jellyseerr"]
+    seerr_url: str
+    seerr_api_key: str | None = None
+    sync_interval_minutes: int = Field(ge=5, le=1440)
+
+
+class ConnectionValidationResponse(BaseModel):
+    integrations: list[IntegrationStatus]

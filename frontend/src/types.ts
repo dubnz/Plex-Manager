@@ -15,6 +15,48 @@ export interface StatusResponse {
   selected_libraries: string[];
 }
 
+export interface ServiceConfigResponse {
+  plex_url: string;
+  plex_token_set: boolean;
+  plex_token_placeholder: boolean;
+  plex_library_names: string[];
+  tautulli_url: string;
+  tautulli_api_key_set: boolean;
+  tautulli_api_key_placeholder: boolean;
+  sonarr_url: string;
+  sonarr_api_key_set: boolean;
+  sonarr_api_key_placeholder: boolean;
+  radarr_url: string;
+  radarr_api_key_set: boolean;
+  radarr_api_key_placeholder: boolean;
+  seerr_kind: "overseerr" | "jellyseerr";
+  seerr_url: string;
+  seerr_api_key_set: boolean;
+  seerr_api_key_placeholder: boolean;
+  sync_interval_minutes: number;
+  config_path: string;
+}
+
+export interface ServiceConfigUpdate {
+  plex_url: string;
+  plex_token?: string | null;
+  plex_library_names: string[];
+  tautulli_url: string;
+  tautulli_api_key?: string | null;
+  sonarr_url: string;
+  sonarr_api_key?: string | null;
+  radarr_url: string;
+  radarr_api_key?: string | null;
+  seerr_kind: "overseerr" | "jellyseerr";
+  seerr_url: string;
+  seerr_api_key?: string | null;
+  sync_interval_minutes: number;
+}
+
+export interface ConnectionValidationResponse {
+  integrations: IntegrationStatus[];
+}
+
 export interface MediaItem {
   id: number;
   plex_rating_key: string;
@@ -70,4 +112,3 @@ export interface FilterState {
   availability: "all" | "available" | "unavailable";
   minPlayCount: number;
 }
-
