@@ -92,7 +92,7 @@ Verification:
 
 Task: Diagnose CT 100 web UI and make Plex Manager configurable from the browser.
 
-Status: Web UI is running on CT 100; waiting on real service credentials for final connection validation.
+Status: Web UI is running on CT 100 with real services configured and validated.
 
 Completed:
 
@@ -106,16 +106,21 @@ Completed:
 - Added read-only connection validation from the UI.
 - Added a real Sync button flow that blocks with a clear Plex-token message until credentials are configured.
 - Deployed latest `master` to CT 100 and rebuilt frontend assets there.
+- Loaded real service settings into `/var/lib/plex-manager/config.json` without committing or printing secrets.
+- Discovered the exact selected Plex sections as `Movies` and `TV`.
+- Updated the frontend to use configured Plex library names instead of the previous hard-coded `Movies`/`TV Shows` tabs.
 
 Verification:
 
-- `curl http://192.168.158.160:8000/api/status`: returns service status with missing placeholders.
+- `curl http://192.168.158.160:8000/api/status`: returns `demo_mode=false` and selected libraries `Movies`, `TV`.
 - `curl http://192.168.158.160:8000/api/config`: returns non-secret config metadata.
-- `POST /api/config/validate`: returns five missing credential statuses with no network calls while placeholders are present.
-- `POST /api/sync/run`: returns `Enter a real Plex token before running sync.`
-- Playwright against `http://192.168.158.160:8000`: Movies view loads, Settings view has 13 config fields, validation panel shows five missing credentials, Sync displays the Plex-token blocker.
-- CT 100 repo is clean at `9861cf8`; local and GitHub `master` match.
+- `POST /api/config/validate`: returns OK for Plex, Tautulli, Sonarr, Radarr, and Seerr.
+- `POST /api/sync/run`: synced 856 Plex items from selected libraries with no warnings.
+- `GET /api/media?library=Movies`: returns 733 rows.
+- `GET /api/media?library=TV`: returns 123 rows.
+- Browser verification against `http://192.168.158.160:8000`: page title is `Plex Manager`; nav shows `Movies`, `TV`, and `Settings`; no `TV Shows` tab is rendered; `TV` loads 123 rows; Settings loads five stored-key states; Test connections returns five OK rows; Sync displays `Synced 856 Plex item(s) from selected libraries.`; console warnings/errors are empty.
+- CT 100 repo was fast-forwarded to `7eb1262`; local and GitHub `master` match.
 
 Next step:
 
-- Open `http://192.168.158.160:8000`, enter real service URLs/API keys in Settings, run Test connections, then run Sync.
+- Continue feature work from the verified LXC deployment, starting with safer cleanup/delete workflows and richer request/watch history where needed.
