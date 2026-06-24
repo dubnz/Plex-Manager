@@ -87,3 +87,35 @@ Verification:
 - `.venv/bin/python -m pytest backend/tests`: 5 passed.
 - `npm --prefix frontend run test -- --run`: 3 passed.
 - `npm --prefix frontend run build`: passed.
+
+## 2026-06-24
+
+Task: Diagnose CT 100 web UI and make Plex Manager configurable from the browser.
+
+Status: Web UI is running on CT 100; waiting on real service credentials for final connection validation.
+
+Completed:
+
+- SSH to Proxmox works via the `proxmox` alias.
+- CT 100 is running as `plex-manager` at `192.168.158.160`.
+- Root cause for the browser not loading was that `plex-manager.service` was enabled but inactive and had never logged a startup attempt.
+- Started and enabled the service path in CT 100; app now listens on `0.0.0.0:8000`.
+- Added web Settings for Plex, Tautulli, Sonarr, Radarr, and Seerr URLs/keys.
+- Added write-only secret handling: config API never returns tokens/API keys.
+- Added runtime config persistence at `/var/lib/plex-manager/config.json`.
+- Added read-only connection validation from the UI.
+- Added a real Sync button flow that blocks with a clear Plex-token message until credentials are configured.
+- Deployed latest `master` to CT 100 and rebuilt frontend assets there.
+
+Verification:
+
+- `curl http://192.168.158.160:8000/api/status`: returns service status with missing placeholders.
+- `curl http://192.168.158.160:8000/api/config`: returns non-secret config metadata.
+- `POST /api/config/validate`: returns five missing credential statuses with no network calls while placeholders are present.
+- `POST /api/sync/run`: returns `Enter a real Plex token before running sync.`
+- Playwright against `http://192.168.158.160:8000`: Movies view loads, Settings view has 13 config fields, validation panel shows five missing credentials, Sync displays the Plex-token blocker.
+- CT 100 repo is clean at `9861cf8`; local and GitHub `master` match.
+
+Next step:
+
+- Open `http://192.168.158.160:8000`, enter real service URLs/API keys in Settings, run Test connections, then run Sync.
