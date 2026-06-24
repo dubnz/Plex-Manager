@@ -17,13 +17,16 @@ def build_integration_status(settings: Settings) -> list[IntegrationStatus]:
             IntegrationStatus(name="Seerr", state=state, detail=f"{detail} Kind: {settings.seerr_kind}."),
         ]
 
-    return [
+    statuses = [
         _status("Plex", settings.plex_token, "Plex token"),
         _status("Tautulli", settings.tautulli_api_key, "Tautulli API key"),
         _status("Sonarr", settings.sonarr_api_key, "Sonarr API key"),
         _status("Radarr", settings.radarr_api_key, "Radarr API key"),
         _status("Seerr", settings.seerr_api_key, f"Seerr API key. Kind: {settings.seerr_kind}"),
     ]
+    if settings.legacy_seerr_url or not is_placeholder(settings.legacy_seerr_api_key):
+        statuses.append(_status("Legacy Overseerr", settings.legacy_seerr_api_key, "Legacy Overseerr API key"))
+    return statuses
 
 
 def _status(name: str, secret: str, label: str) -> IntegrationStatus:

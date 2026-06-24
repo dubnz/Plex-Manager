@@ -32,6 +32,9 @@ export interface ServiceConfigResponse {
   seerr_url: string;
   seerr_api_key_set: boolean;
   seerr_api_key_placeholder: boolean;
+  legacy_seerr_url: string;
+  legacy_seerr_api_key_set: boolean;
+  legacy_seerr_api_key_placeholder: boolean;
   sync_interval_minutes: number;
   config_path: string;
 }
@@ -49,6 +52,8 @@ export interface ServiceConfigUpdate {
   seerr_kind: "overseerr" | "jellyseerr";
   seerr_url: string;
   seerr_api_key?: string | null;
+  legacy_seerr_url: string;
+  legacy_seerr_api_key?: string | null;
   sync_interval_minutes: number;
 }
 

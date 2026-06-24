@@ -249,7 +249,7 @@ button.danger {
 }
 
 .table-panel {
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .table-summary {
@@ -266,6 +266,7 @@ button.danger {
 table {
   border-collapse: collapse;
   font-size: 0.88rem;
+  min-width: 980px;
   width: 100%;
 }
 
@@ -567,10 +568,6 @@ td span {
   .action-group,
   .action-group button {
     width: 100%;
-  }
-
-  .table-panel {
-    overflow-x: auto;
   }
 
   table {

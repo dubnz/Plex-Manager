@@ -22,6 +22,17 @@ class SeerrClient(HttpApiClient):
         results = payload.get("results")
         return results if isinstance(results, list) else []
 
+    async def list_all_requests(self, *, page_size: int = 100, max_pages: int = 100) -> list[dict[str, Any]]:
+        requests: list[dict[str, Any]] = []
+        skip = 0
+        for _ in range(max_pages):
+            page = await self.list_requests(take=page_size, skip=skip)
+            requests.extend(page)
+            if len(page) < page_size:
+                break
+            skip += len(page)
+        return requests
+
     async def mark_unavailable(self, media_id: int, *, confirm: bool = False) -> None:
         if not confirm:
             raise RuntimeError("Seerr mark_unavailable requires explicit confirm=True after dry-run.")
@@ -29,4 +40,3 @@ class SeerrClient(HttpApiClient):
             f"{self.kind} unavailable mutation is blocked until the exact endpoint is verified "
             "against the configured service version."
         )
-

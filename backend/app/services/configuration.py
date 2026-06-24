@@ -13,6 +13,7 @@ SECRET_KEYS = {
     "SONARR_API_KEY",
     "RADARR_API_KEY",
     "SEERR_API_KEY",
+    "LEGACY_SEERR_API_KEY",
 }
 
 
@@ -42,6 +43,9 @@ def public_config(settings: Settings) -> ServiceConfigResponse:
         seerr_url=settings.seerr_url,
         seerr_api_key_set=bool(settings.seerr_api_key),
         seerr_api_key_placeholder=is_placeholder(settings.seerr_api_key),
+        legacy_seerr_url=settings.legacy_seerr_url,
+        legacy_seerr_api_key_set=bool(settings.legacy_seerr_api_key),
+        legacy_seerr_api_key_placeholder=is_placeholder(settings.legacy_seerr_api_key),
         sync_interval_minutes=settings.sync_interval_minutes,
         config_path=str(settings.config_path),
     )
@@ -68,6 +72,12 @@ def save_config(settings: Settings, update: ServiceConfigUpdate) -> None:
         "SEERR_KIND": update.seerr_kind,
         "SEERR_URL": update.seerr_url.rstrip("/"),
         "SEERR_API_KEY": secret("SEERR_API_KEY", update.seerr_api_key, settings.seerr_api_key),
+        "LEGACY_SEERR_URL": update.legacy_seerr_url.rstrip("/"),
+        "LEGACY_SEERR_API_KEY": secret(
+            "LEGACY_SEERR_API_KEY",
+            update.legacy_seerr_api_key,
+            settings.legacy_seerr_api_key,
+        ),
         "SYNC_INTERVAL_MINUTES": str(update.sync_interval_minutes),
     }
 
@@ -85,4 +95,3 @@ def _read_config(path: Path) -> dict[str, str]:
     if not isinstance(payload, dict):
         return {}
     return {str(key): str(value) for key, value in payload.items()}
-

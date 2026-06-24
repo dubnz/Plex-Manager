@@ -22,6 +22,7 @@ class PlexMediaSummary:
     year: int | None
     added_at: datetime
     thumb: str | None
+    file_size_bytes: int
 
 
 class PlexClient(HttpApiClient):
@@ -63,5 +64,8 @@ class PlexClient(HttpApiClient):
             year=int(node.attrib["year"]) if node.attrib.get("year") else None,
             added_at=datetime.fromtimestamp(added_at, UTC),
             thumb=node.attrib.get("thumb"),
+            file_size_bytes=sum(
+                int(part.attrib.get("size", "0") or "0")
+                for part in node.findall("./Media/Part")
+            ),
         )
-

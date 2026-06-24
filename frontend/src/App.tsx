@@ -45,6 +45,8 @@ interface ConfigForm {
   seerr_kind: "overseerr" | "jellyseerr";
   seerr_url: string;
   seerr_api_key: string;
+  legacy_seerr_url: string;
+  legacy_seerr_api_key: string;
   sync_interval_minutes: number;
 }
 
@@ -511,6 +513,23 @@ function SettingsView({ onSaved }: { onSaved: () => Promise<void> }) {
           <SecretField label="Seerr API key" value={form.seerr_api_key} onChange={(value) => update("seerr_api_key", value)} />
         </ServicePanel>
 
+        <ServicePanel
+          title="Legacy Overseerr"
+          secretSet={config.legacy_seerr_api_key_set}
+          secretPlaceholder={config.legacy_seerr_api_key_placeholder}
+        >
+          <TextField
+            label="Legacy Overseerr URL"
+            value={form.legacy_seerr_url}
+            onChange={(value) => update("legacy_seerr_url", value)}
+          />
+          <SecretField
+            label="Legacy Overseerr API key"
+            value={form.legacy_seerr_api_key}
+            onChange={(value) => update("legacy_seerr_api_key", value)}
+          />
+        </ServicePanel>
+
         <section className="settings-panel">
           <div className="settings-panel-heading">
             <div>
@@ -612,6 +631,8 @@ function toForm(config: ServiceConfigResponse): ConfigForm {
     seerr_kind: config.seerr_kind,
     seerr_url: config.seerr_url,
     seerr_api_key: "",
+    legacy_seerr_url: config.legacy_seerr_url,
+    legacy_seerr_api_key: "",
     sync_interval_minutes: config.sync_interval_minutes
   };
 }
@@ -630,6 +651,8 @@ function toUpdate(form: ConfigForm): ServiceConfigUpdate {
     seerr_kind: form.seerr_kind,
     seerr_url: form.seerr_url,
     seerr_api_key: form.seerr_api_key || null,
+    legacy_seerr_url: form.legacy_seerr_url,
+    legacy_seerr_api_key: form.legacy_seerr_api_key || null,
     sync_interval_minutes: form.sync_interval_minutes
   };
 }

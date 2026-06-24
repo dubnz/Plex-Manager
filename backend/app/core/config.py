@@ -43,6 +43,8 @@ class Settings:
     seerr_kind: str
     seerr_url: str
     seerr_api_key: str
+    legacy_seerr_url: str
+    legacy_seerr_api_key: str
     db_path: Path
     config_path: Path
     sync_interval_minutes: int
@@ -108,6 +110,8 @@ def load_settings() -> Settings:
         seerr_kind=seerr_kind or "demo",
         seerr_url=value("SEERR_URL", "http://demo-seerr.local:5055").rstrip("/"),
         seerr_api_key=value("SEERR_API_KEY", "demo-seerr-key"),
+        legacy_seerr_url=value("LEGACY_SEERR_URL", "").rstrip("/"),
+        legacy_seerr_api_key=value("LEGACY_SEERR_API_KEY", ""),
         db_path=db_path,
         config_path=config_path,
         sync_interval_minutes=int(value("SYNC_INTERVAL_MINUTES", "60")),

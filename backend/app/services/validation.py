@@ -21,6 +21,8 @@ async def validate_connections(settings: Settings) -> ConnectionValidationRespon
         await _validate_radarr(settings),
         await _validate_seerr(settings),
     ]
+    if settings.legacy_seerr_url or not is_placeholder(settings.legacy_seerr_api_key):
+        results.append(await _validate_legacy_seerr(settings))
     return ConnectionValidationResponse(integrations=results)
 
 
@@ -95,3 +97,19 @@ async def _validate_seerr(settings: Settings) -> IntegrationStatus:
 
     return await _guarded("Seerr", operation)
 
+
+async def _validate_legacy_seerr(settings: Settings) -> IntegrationStatus:
+    if not settings.legacy_seerr_url:
+        return IntegrationStatus(name="Legacy Overseerr", state="missing", detail="Enter a legacy Overseerr URL.")
+    if is_placeholder(settings.legacy_seerr_api_key):
+        return IntegrationStatus(name="Legacy Overseerr", state="missing", detail="Enter a legacy Overseerr API key.")
+
+    async def operation() -> str:
+        requests = await SeerrClient(
+            settings.legacy_seerr_url,
+            settings.legacy_seerr_api_key,
+            "overseerr",
+        ).list_requests(take=1)
+        return f"Connected to legacy Overseerr. Requests endpoint returned {len(requests)} row(s)."
+
+    return await _guarded("Legacy Overseerr", operation)

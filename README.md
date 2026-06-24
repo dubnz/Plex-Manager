@@ -22,7 +22,7 @@ systemctl start plex-manager
 systemctl status plex-manager --no-pager
 ```
 
-Open the web UI and use Settings to configure Plex, Tautulli, Sonarr, Radarr, and Seerr access.
+Open the web UI and use Settings to configure Plex, Tautulli, Sonarr, Radarr, and Seerr access. If you migrated to a new Jellyseerr/Seerr instance, you can also configure a legacy Overseerr source for read-only requester history.
 
 Open:
 

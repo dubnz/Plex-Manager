@@ -103,6 +103,9 @@ class ServiceConfigResponse(BaseModel):
     seerr_url: str
     seerr_api_key_set: bool
     seerr_api_key_placeholder: bool
+    legacy_seerr_url: str
+    legacy_seerr_api_key_set: bool
+    legacy_seerr_api_key_placeholder: bool
     sync_interval_minutes: int
     config_path: str
 
@@ -120,6 +123,8 @@ class ServiceConfigUpdate(BaseModel):
     seerr_kind: Literal["overseerr", "jellyseerr"]
     seerr_url: str
     seerr_api_key: str | None = None
+    legacy_seerr_url: str = ""
+    legacy_seerr_api_key: str | None = None
     sync_interval_minutes: int = Field(ge=5, le=1440)
 
 
