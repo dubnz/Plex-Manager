@@ -4,7 +4,8 @@ import type {
   MediaListResponse,
   ServiceConfigResponse,
   ServiceConfigUpdate,
-  StatusResponse
+  StatusResponse,
+  SyncRunResponse
 } from "./types";
 
 async function getJson<T>(url: string): Promise<T> {
@@ -46,6 +47,14 @@ export async function validateConfig(): Promise<ConnectionValidationResponse> {
     throw new Error(`Validate config failed with ${response.status}`);
   }
   return response.json() as Promise<ConnectionValidationResponse>;
+}
+
+export async function runSync(): Promise<SyncRunResponse> {
+  const response = await fetch("/api/sync/run", { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`Sync failed with ${response.status}`);
+  }
+  return response.json() as Promise<SyncRunResponse>;
 }
 
 export async function createDeleteDryRun(ids: number[], deleteFiles = true): Promise<DeleteDryRunPlan> {

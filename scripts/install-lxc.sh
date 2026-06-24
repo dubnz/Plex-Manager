@@ -89,15 +89,15 @@ systemctl enable plex-manager.service
 cat <<EOF
 Plex Manager is installed as a native LXC service.
 
-1. Edit credentials:
-   nano $ENV_FILE
-
-2. Start the app:
+1. Start the app:
    systemctl start plex-manager
 
-3. Check status:
+2. Check status:
    systemctl status plex-manager --no-pager
 
-4. Open:
+3. Open:
    http://$(hostname -I | awk '{print $1}'):$SERVICE_PORT
+
+4. Configure services in the web UI:
+   Settings -> Plex, Tautulli, Sonarr, Radarr, Seerr
 EOF

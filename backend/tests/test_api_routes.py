@@ -31,3 +31,30 @@ def test_delete_dry_run_route_uses_cached_items(monkeypatch, tmp_path) -> None:
     payload = response.json()
     assert payload["requires_confirmation"] is True
     assert payload["items"][0]["steps"][0]["dry_run"] is True
+
+
+def test_sync_route_blocks_placeholder_plex_token(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("PLEX_MANAGER_DEMO_MODE", "false")
+    monkeypatch.setenv("PLEX_URL", "http://plex.local:32400")
+    monkeypatch.setenv("PLEX_TOKEN", "replace-me")
+    monkeypatch.setenv("PLEX_LIBRARY_NAMES", "Movies,TV Shows")
+    monkeypatch.setenv("TAUTULLI_URL", "http://tautulli.local:8181")
+    monkeypatch.setenv("TAUTULLI_API_KEY", "replace-me")
+    monkeypatch.setenv("SONARR_URL", "http://sonarr.local:8989")
+    monkeypatch.setenv("SONARR_API_KEY", "replace-me")
+    monkeypatch.setenv("RADARR_URL", "http://radarr.local:7878")
+    monkeypatch.setenv("RADARR_API_KEY", "replace-me")
+    monkeypatch.setenv("SEERR_KIND", "overseerr")
+    monkeypatch.setenv("SEERR_URL", "http://seerr.local:5055")
+    monkeypatch.setenv("SEERR_API_KEY", "replace-me")
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "demo.db"))
+    monkeypatch.setenv("CONFIG_PATH", str(tmp_path / "config.json"))
+
+    from app.main import create_app
+
+    client = TestClient(create_app())
+    response = client.post("/api/sync/run")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "blocked"
+    assert "Plex token" in response.json()["detail"]

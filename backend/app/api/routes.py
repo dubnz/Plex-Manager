@@ -14,10 +14,12 @@ from app.models import (
     ServiceConfigResponse,
     ServiceConfigUpdate,
     StatusResponse,
+    SyncRunResponse,
 )
 from app.services.cleanup import build_delete_dry_run_plan
 from app.services.configuration import public_config, save_config
 from app.services.status import build_integration_status
+from app.services.sync import run_sync
 from app.services.validation import validate_connections
 
 
@@ -87,11 +89,9 @@ def delete_dry_run(
         raise HTTPException(status_code=404, detail=f"Unknown media item ids: {missing_ids}")
     return build_delete_dry_run_plan(items, delete_files=request.delete_files)
 
-@router.post("/sync/run")
-def sync_run(settings: Settings = Depends(get_settings)) -> dict[str, str]:
-    if settings.demo_mode:
-        return {"status": "demo", "detail": "Demo data is already seeded; no external sync was run."}
-    return {
-        "status": "blocked",
-        "detail": "Read-only discovery must verify all credentials before background sync is enabled.",
-    }
+@router.post("/sync/run", response_model=SyncRunResponse)
+async def sync_run(
+    settings: Settings = Depends(get_settings),
+    conn: sqlite3.Connection = Depends(get_connection),
+) -> SyncRunResponse:
+    return await run_sync(settings, conn)

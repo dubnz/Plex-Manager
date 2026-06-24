@@ -77,6 +77,14 @@ class StatusResponse(BaseModel):
     selected_libraries: list[str]
 
 
+class SyncRunResponse(BaseModel):
+    status: str
+    detail: str
+    synced_items: int = 0
+    selected_libraries: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class ServiceConfigResponse(BaseModel):
     plex_url: str
     plex_token_set: bool

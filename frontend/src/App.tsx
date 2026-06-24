@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { createDeleteDryRun, getConfig, getMedia, getStatus, saveConfig, validateConfig } from "./api";
+import { createDeleteDryRun, getConfig, getMedia, getStatus, runSync, saveConfig, validateConfig } from "./api";
 import { buildMockDryRun, mockMedia, mockStatus } from "./lib/mockData";
 import { filterMedia, toCsv } from "./lib/filters";
 import { formatBytes, formatDate } from "./lib/format";
@@ -63,6 +63,7 @@ export function App() {
     minPlayCount: 0
   });
   const [apiNote, setApiNote] = useState("Loading API status...");
+  const [syncMessage, setSyncMessage] = useState("");
 
   async function loadMedia(library = activeLibrary) {
     try {
@@ -97,6 +98,17 @@ export function App() {
       setDryRunPlan(await createDeleteDryRun(ids));
     } catch {
       setDryRunPlan(buildMockDryRun(visibleItems.filter((item) => selectedIds.has(item.id))));
+    }
+  }
+
+  async function syncNow() {
+    setSyncMessage("Sync running...");
+    try {
+      const result = await runSync();
+      setSyncMessage(result.detail);
+      await loadMedia(activeLibrary);
+    } catch (error) {
+      setSyncMessage(error instanceof Error ? error.message : "Sync failed.");
     }
   }
 
@@ -187,9 +199,9 @@ export function App() {
           <header className="topbar">
             <div>
               <h1>{activeLibrary}</h1>
-              <p>Oldest added first. Exact sections only: {status.selected_libraries.join(", ")}.</p>
+              <p>{syncMessage || `Oldest added first. Exact sections only: ${status.selected_libraries.join(", ")}.`}</p>
             </div>
-            <button className="icon-button" title="Run sync" onClick={() => loadMedia(activeLibrary)}>
+            <button className="icon-button" title="Run sync" onClick={syncNow}>
               <RefreshCw size={17} />
               Sync
             </button>

@@ -57,6 +57,14 @@ export interface ConnectionValidationResponse {
   integrations: IntegrationStatus[];
 }
 
+export interface SyncRunResponse {
+  status: string;
+  detail: string;
+  synced_items: number;
+  selected_libraries: string[];
+  warnings: string[];
+}
+
 export interface MediaItem {
   id: number;
   plex_rating_key: string;
