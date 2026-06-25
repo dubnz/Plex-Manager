@@ -48,10 +48,17 @@ class Settings:
     db_path: Path
     config_path: Path
     sync_interval_minutes: int
+    local_media_paths: tuple[str, ...]
+    protected_media_paths: tuple[str, ...]
 
 
 def _truthy(value: str | None) -> bool:
     return value is not None and value.lower() in {"1", "true", "yes", "on"}
+
+
+def _split_paths(value: str | None, default: str = "") -> tuple[str, ...]:
+    raw = value or default
+    return tuple(part.strip().rstrip("/") for part in raw.split(",") if part.strip())
 
 
 def _split_libraries(value: str | None) -> tuple[str, ...]:
@@ -115,4 +122,10 @@ def load_settings() -> Settings:
         db_path=db_path,
         config_path=config_path,
         sync_interval_minutes=int(value("SYNC_INTERVAL_MINUTES", "60")),
+        # Duplicate-detection paths are deployment-specific and must be configured
+        # per environment (config.json or env). No defaults so nothing personal
+        # ships in the public repo. Empty means duplicate detection is disabled
+        # until configured.
+        local_media_paths=_split_paths(value("LOCAL_MEDIA_PATHS")),
+        protected_media_paths=_split_paths(value("PROTECTED_MEDIA_PATHS")),
     )

@@ -30,7 +30,8 @@ export const mockMedia: MediaItem[] = [
     manager_kind: "radarr",
     manager_id: 41,
     available: true,
-    file_size_bytes: 8734003200
+    file_size_bytes: 8734003200,
+    file_paths: []
   },
   {
     id: 2,
@@ -48,7 +49,8 @@ export const mockMedia: MediaItem[] = [
     manager_kind: "radarr",
     manager_id: 88,
     available: true,
-    file_size_bytes: 5368709120
+    file_size_bytes: 5368709120,
+    file_paths: []
   },
   {
     id: 3,
@@ -66,7 +68,8 @@ export const mockMedia: MediaItem[] = [
     manager_kind: "sonarr",
     manager_id: 12,
     available: true,
-    file_size_bytes: 192414534656
+    file_size_bytes: 192414534656,
+    file_paths: []
   },
   {
     id: 4,
@@ -84,7 +87,8 @@ export const mockMedia: MediaItem[] = [
     manager_kind: "sonarr",
     manager_id: 59,
     available: false,
-    file_size_bytes: 64424509440
+    file_size_bytes: 64424509440,
+    file_paths: []
   }
 ];
 

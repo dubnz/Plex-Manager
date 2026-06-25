@@ -33,6 +33,48 @@ class MediaItem(BaseModel):
     manager_id: int | None = None
     available: bool = True
     file_size_bytes: int = 0
+    file_paths: list[str] = Field(default_factory=list)
+
+
+class DuplicateItem(MediaItem):
+    local_paths: list[str] = Field(default_factory=list)
+    nas_paths: list[str] = Field(default_factory=list)
+
+
+class DuplicatesListResponse(BaseModel):
+    items: list[DuplicateItem]
+    total: int
+    total_reclaimable_bytes: int
+    demo_mode: bool
+
+
+class DuplicatesDryRunRequest(BaseModel):
+    media_item_ids: list[int] = Field(min_length=1)
+
+
+class DuplicatesDryRunStep(BaseModel):
+    service: str
+    action: str
+    dry_run: bool = True
+    detail: str
+
+
+class DuplicatesDryRunItem(BaseModel):
+    media_item_id: int
+    title: str
+    library: str
+    manager_kind: str
+    local_paths: list[str]
+    nas_paths: list[str]
+    reclaimable_bytes: int
+    steps: list[DuplicatesDryRunStep]
+    warnings: list[str] = Field(default_factory=list)
+
+
+class DuplicatesDryRunPlan(BaseModel):
+    items: list[DuplicatesDryRunItem]
+    total_reclaimable_bytes: int
+    global_warnings: list[str] = Field(default_factory=list)
 
 
 class MediaListResponse(BaseModel):

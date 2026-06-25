@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 
-from app.models import MediaItem
+from app.models import DuplicateItem, MediaItem
 
 
 SCHEMA = """
@@ -26,12 +26,17 @@ CREATE TABLE IF NOT EXISTS media_item (
     manager_kind TEXT NOT NULL DEFAULT 'none',
     manager_id INTEGER,
     available INTEGER NOT NULL DEFAULT 1,
-    file_size_bytes INTEGER NOT NULL DEFAULT 0
+    file_size_bytes INTEGER NOT NULL DEFAULT 0,
+    file_paths_json TEXT NOT NULL DEFAULT '[]'
 );
 
 CREATE INDEX IF NOT EXISTS idx_media_item_library_added
     ON media_item(library, added_at);
 """
+
+SCHEMA_MIGRATIONS = [
+    "ALTER TABLE media_item ADD COLUMN file_paths_json TEXT NOT NULL DEFAULT '[]'",
+]
 
 
 DEMO_ITEMS = (
@@ -116,7 +121,16 @@ def connect(db_path: Path) -> sqlite3.Connection:
 
 def init_database(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
+    _run_migrations(conn)
     conn.commit()
+
+
+def _run_migrations(conn: sqlite3.Connection) -> None:
+    for statement in SCHEMA_MIGRATIONS:
+        try:
+            conn.execute(statement)
+        except sqlite3.OperationalError:
+            pass  # column already exists
 
 
 def seed_demo_data(conn: sqlite3.Connection) -> None:
@@ -133,9 +147,9 @@ def upsert_media_items(conn: sqlite3.Connection, items: Iterable[dict]) -> None:
             INSERT INTO media_item (
                 plex_rating_key, library, media_type, title, year, added_at, play_count,
                 last_played, watched_by_json, requested_by, request_date, manager_kind,
-                manager_id, available, file_size_bytes
+                manager_id, available, file_size_bytes, file_paths_json
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(plex_rating_key) DO UPDATE SET
                 library=excluded.library,
                 media_type=excluded.media_type,
@@ -150,7 +164,8 @@ def upsert_media_items(conn: sqlite3.Connection, items: Iterable[dict]) -> None:
                 manager_kind=excluded.manager_kind,
                 manager_id=excluded.manager_id,
                 available=excluded.available,
-                file_size_bytes=excluded.file_size_bytes
+                file_size_bytes=excluded.file_size_bytes,
+                file_paths_json=excluded.file_paths_json
             """,
             (
                 item["plex_rating_key"],
@@ -168,6 +183,7 @@ def upsert_media_items(conn: sqlite3.Connection, items: Iterable[dict]) -> None:
                 item.get("manager_id"),
                 1 if item.get("available", True) else 0,
                 item.get("file_size_bytes", 0),
+                json.dumps(item.get("file_paths", [])),
             ),
         )
     conn.commit()
@@ -194,6 +210,34 @@ def get_media_by_ids(conn: sqlite3.Connection, ids: list[int]) -> list[MediaItem
         tuple(ids),
     ).fetchall()
     return [_row_to_media_item(row) for row in rows]
+
+
+def list_duplicates(
+    conn: sqlite3.Connection,
+    local_prefixes: tuple[str, ...],
+    protected_prefixes: tuple[str, ...],
+    library: str | None = None,
+) -> list[DuplicateItem]:
+    sql = "SELECT * FROM media_item WHERE file_paths_json != '[]' AND file_paths_json IS NOT NULL"
+    params: tuple[str, ...] = ()
+    if library:
+        sql += " AND library = ?"
+        params = (library,)
+    sql += " ORDER BY title ASC"
+    rows = conn.execute(sql, params).fetchall()
+    results: list[DuplicateItem] = []
+    for row in rows:
+        paths: list[str] = json.loads(row["file_paths_json"] or "[]")
+        local = [p for p in paths if any(p.startswith(prefix) for prefix in local_prefixes)]
+        nas = [p for p in paths if any(p.startswith(prefix) for prefix in protected_prefixes)]
+        if local and nas:
+            item = _row_to_media_item(row)
+            results.append(DuplicateItem(
+                **item.model_dump(),
+                local_paths=local,
+                nas_paths=nas,
+            ))
+    return results
 
 
 def mark_media_unavailable(conn: sqlite3.Connection, ids: list[int]) -> None:
@@ -232,4 +276,5 @@ def _row_to_media_item(row: sqlite3.Row) -> MediaItem:
         manager_id=row["manager_id"],
         available=bool(row["available"]),
         file_size_bytes=row["file_size_bytes"],
+        file_paths=json.loads(row["file_paths_json"] or "[]"),
     )

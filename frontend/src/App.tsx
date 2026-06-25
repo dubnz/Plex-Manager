@@ -3,6 +3,7 @@ import {
   ArrowDown,
   ArrowUp,
   CheckCircle2,
+  Copy,
   Download,
   KeyRound,
   PanelRightOpen,
@@ -18,7 +19,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { createDeleteDryRun, executeDelete, getConfig, getMedia, getStatus, runSync, saveConfig, validateConfig } from "./api";
+import { createDeleteDryRun, createDuplicatesDryRun, executeDelete, getConfig, getDuplicates, getMedia, getStatus, runSync, saveConfig, validateConfig } from "./api";
 import { buildMockDryRun, mockMedia, mockStatus } from "./lib/mockData";
 import { filterMedia, toCsv } from "./lib/filters";
 import { formatBytes, formatDate } from "./lib/format";
@@ -26,6 +27,9 @@ import type {
   ConnectionValidationResponse,
   DeleteExecuteResponse,
   DeleteDryRunPlan,
+  DuplicateItem,
+  DuplicatesListResponse,
+  DuplicatesDryRunPlan,
   FilterState,
   MediaItem,
   ServiceConfigResponse,
@@ -64,7 +68,7 @@ const SORTABLE_COLUMNS: Array<{ key: SortKey; label: string }> = [
   { key: "file_size_bytes", label: "Size" }
 ];
 
-type View = "media" | "settings";
+type View = "media" | "duplicates" | "settings";
 
 interface ConfigForm {
   plex_url: string;
@@ -209,7 +213,7 @@ export function App() {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `arr-media-manager-${activeLibrary.toLowerCase().replace(/\s+/g, "-")}.csv`;
+    anchor.download = `plex-media-manager-${activeLibrary.toLowerCase().replace(/\s+/g, "-")}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -236,10 +240,10 @@ export function App() {
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
-            <img src="/arr-media-manager-icon.svg" alt="" />
+            <img src="/plex-media-manager-icon.svg" alt="" />
           </div>
           <div>
-            <strong>arr Media Manager</strong>
+            <strong>Plex Media Manager</strong>
             <span>{apiNote}</span>
           </div>
         </div>
@@ -257,6 +261,13 @@ export function App() {
               {library}
             </button>
           ))}
+          <button
+            className={activeView === "duplicates" ? "active" : ""}
+            onClick={() => setActiveView("duplicates")}
+          >
+            <Copy size={16} />
+            Duplicates
+          </button>
           <button
             className={activeView === "settings" ? "active" : ""}
             onClick={() => setActiveView("settings")}
@@ -285,6 +296,8 @@ export function App() {
             setApiNote(nextStatus.demo_mode ? "Demo mode from backend" : "Connected to backend cache");
           }}
         />
+      ) : activeView === "duplicates" ? (
+        <DuplicatesView />
       ) : (
         <main className="workspace">
           <header className="topbar">
@@ -638,6 +651,304 @@ function DeletePreviewDrawer({
       </aside>
     </>
   );
+}
+
+function DuplicatesView() {
+  const [data, setData] = useState<DuplicatesListResponse | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [plan, setPlan] = useState<DuplicatesDryRunPlan | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [message, setMessage] = useState("Loading duplicates...");
+  const [typeFilter, setTypeFilter] = useState<"all" | "movie" | "show">("all");
+  const [searchFilter, setSearchFilter] = useState("");
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const result = await getDuplicates();
+        setData(result);
+        setMessage(result.total === 0
+          ? "No duplicates found. Run a sync to update the cache."
+          : `${result.total} item(s) found with both local and NAS copies.`
+        );
+      } catch {
+        setMessage("Failed to load duplicates. Check that the backend is reachable and a sync has run.");
+      }
+    }
+    load();
+  }, []);
+
+  const items = useMemo(() => {
+    if (!data) return [];
+    return data.items.filter((item) => {
+      if (typeFilter !== "all" && item.media_type !== typeFilter) return false;
+      if (searchFilter && !item.title.toLowerCase().includes(searchFilter.toLowerCase())) return false;
+      return true;
+    });
+  }, [data, typeFilter, searchFilter]);
+
+  const allSelected = items.length > 0 && items.every((item) => selectedIds.has(item.id));
+
+  function toggleItem(id: number) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(items.map((item) => item.id)));
+    }
+  }
+
+  async function runDryRun() {
+    if (selectedIds.size === 0) return;
+    const ids = [...selectedIds];
+    try {
+      const result = await createDuplicatesDryRun(ids);
+      setPlan(result);
+      setPreviewOpen(true);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Dry-run failed.");
+    }
+  }
+
+  const selectedItems = items.filter((item) => selectedIds.has(item.id));
+  const reclaimableSelected = selectedItems.reduce((sum, item) => sum + item.file_size_bytes, 0);
+
+  return (
+    <main className="workspace">
+      <header className="topbar">
+        <div>
+          <h1>Duplicates</h1>
+          <p>{message}</p>
+        </div>
+        {data && data.total > 0 ? (
+          <div className="action-group">
+            <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+              Total reclaimable: {formatBytes(data.total_reclaimable_bytes)}
+            </span>
+          </div>
+        ) : null}
+      </header>
+
+      <section className="toolbar" aria-label="Duplicate filters and actions">
+        <label className="search-box">
+          <Search size={17} />
+          <input
+            value={searchFilter}
+            onChange={(event) => setSearchFilter(event.target.value)}
+            placeholder="Search title"
+          />
+        </label>
+
+        <div className="segmented">
+          <button className={typeFilter === "all" ? "active" : ""} onClick={() => setTypeFilter("all")}>All</button>
+          <button className={typeFilter === "movie" ? "active" : ""} onClick={() => setTypeFilter("movie")}>Movies</button>
+          <button className={typeFilter === "show" ? "active" : ""} onClick={() => setTypeFilter("show")}>TV Shows</button>
+        </div>
+
+        <div className="action-group">
+          <button className="danger" disabled={selectedIds.size === 0} onClick={runDryRun}>
+            <Trash2 size={16} />
+            Dry-run remove local copy
+          </button>
+          {plan && !previewOpen ? (
+            <button onClick={() => setPreviewOpen(true)}>
+              <PanelRightOpen size={16} />
+              View dry-run preview
+            </button>
+          ) : null}
+        </div>
+      </section>
+
+      {data && items.length > 0 ? (
+        <div className="content-grid">
+          <section className="table-panel" aria-label="Duplicate media items">
+            <div className="table-summary">
+              <span>{items.length} filtered</span>
+              <span>{selectedIds.size} selected</span>
+              {selectedIds.size > 0 ? (
+                <span>{formatBytes(reclaimableSelected)} selected reclaimable</span>
+              ) : null}
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th className="select-cell">
+                    <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+                  </th>
+                  <th>Title</th>
+                  <th>Type</th>
+                  <th>Local file(s)</th>
+                  <th>NAS file(s)</th>
+                  <th>Size to reclaim</th>
+                  <th>Manager</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <DuplicateRow
+                    key={item.id}
+                    item={item}
+                    selected={selectedIds.has(item.id)}
+                    onToggle={toggleItem}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </section>
+        </div>
+      ) : null}
+
+      {previewOpen && plan ? (
+        <DuplicatesDryRunDrawer
+          plan={plan}
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+        />
+      ) : null}
+    </main>
+  );
+}
+
+function DuplicateRow({
+  item,
+  selected,
+  onToggle
+}: {
+  item: DuplicateItem;
+  selected: boolean;
+  onToggle: (id: number) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const localDisplay = item.local_paths.length === 1
+    ? truncatePath(item.local_paths[0])
+    : `${item.local_paths.length} local files`;
+  const nasDisplay = item.nas_paths.length === 1
+    ? truncatePath(item.nas_paths[0])
+    : `${item.nas_paths.length} NAS files`;
+
+  return (
+    <>
+      <tr className={selected ? "selected-row" : ""}>
+        <td className="select-cell">
+          <input type="checkbox" checked={selected} onChange={() => onToggle(item.id)} />
+        </td>
+        <td>
+          <button
+            className="text-button"
+            onClick={() => setExpanded((v) => !v)}
+            title="Show file paths"
+          >
+            <strong>{item.title}</strong>
+          </button>
+          <span>{item.year ?? "Unknown"}</span>
+        </td>
+        <td>{item.media_type === "movie" ? "Movie" : "TV Show"}</td>
+        <td>
+          <span className="path-cell local-path" title={item.local_paths.join("\n")}>{localDisplay}</span>
+        </td>
+        <td>
+          <span className="path-cell nas-path" title={item.nas_paths.join("\n")}>{nasDisplay}</span>
+        </td>
+        <td>{formatBytes(item.file_size_bytes)}</td>
+        <td>{item.manager_kind}</td>
+      </tr>
+      {expanded ? (
+        <tr className="path-detail-row">
+          <td />
+          <td colSpan={6}>
+            <div className="path-detail">
+              <div>
+                <strong>Local (to remove):</strong>
+                <ul>{item.local_paths.map((p) => <li key={p}>{p}</li>)}</ul>
+              </div>
+              <div>
+                <strong>NAS (kept):</strong>
+                <ul>{item.nas_paths.map((p) => <li key={p}>{p}</li>)}</ul>
+              </div>
+            </div>
+          </td>
+        </tr>
+      ) : null}
+    </>
+  );
+}
+
+function DuplicatesDryRunDrawer({
+  plan,
+  open,
+  onClose
+}: {
+  plan: DuplicatesDryRunPlan;
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <>
+      <button className="drawer-backdrop" aria-label="Close dry-run preview" onClick={onClose} />
+      <aside className="preview-drawer" aria-label="Duplicates dry-run preview">
+        <div className="preview-heading">
+          <ShieldCheck size={19} />
+          <div>
+            <h2>Duplicates dry-run preview</h2>
+            <p>No files will be deleted — this is a preview only.</p>
+          </div>
+          <button className="drawer-close" title="Close" aria-label="Close" onClick={onClose}>
+            <X size={17} />
+          </button>
+        </div>
+
+        <div className="dry-run">
+          <div className="estimate">
+            <span>Storage to reclaim</span>
+            <strong>{formatBytes(plan.total_reclaimable_bytes)}</strong>
+          </div>
+          {plan.global_warnings.map((warning) => (
+            <p className="warning" key={warning}>{warning}</p>
+          ))}
+          {plan.items.map((item) => (
+            <div className="plan-item" key={item.media_item_id}>
+              <strong>{item.title}</strong>
+              <span>{item.library} · {item.manager_kind} · {formatBytes(item.reclaimable_bytes)} local</span>
+              {item.warnings.map((w) => (
+                <p className="warning" key={w}>{w}</p>
+              ))}
+              <ol>
+                {item.steps.map((step) => (
+                  <li key={`${item.media_item_id}-${step.service}-${step.action}`}>
+                    <b>{step.service}</b>
+                    <small style={{ whiteSpace: "pre-wrap" }}>{step.detail}</small>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ))}
+        </div>
+
+        <section className="execute-panel" aria-label="Execute note">
+          <p>
+            <strong>Execute not yet available.</strong> Review the steps above, then run a sync to verify the preview is still accurate before deletion is enabled.
+          </p>
+        </section>
+      </aside>
+    </>
+  );
+}
+
+function truncatePath(path: string, maxLen = 60): string {
+  if (path.length <= maxLen) return path;
+  const filename = path.split("/").pop() ?? path;
+  if (filename.length >= maxLen) return "…/" + filename.slice(-maxLen + 2);
+  const prefix = path.slice(0, maxLen - filename.length - 3);
+  return `${prefix}…/${filename}`;
 }
 
 function SettingsView({ onSaved }: { onSaved: () => Promise<void> }) {

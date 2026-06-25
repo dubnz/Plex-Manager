@@ -59,7 +59,10 @@ def save_config(settings: Settings, update: ServiceConfigUpdate) -> None:
             return str(existing.get(key, current))
         return submitted
 
-    payload = {
+    # Start from existing config so deployment-specific keys not managed by the
+    # settings form (e.g. LOCAL_MEDIA_PATHS, PROTECTED_MEDIA_PATHS) are preserved.
+    payload = dict(existing)
+    payload.update({
         "PLEX_URL": update.plex_url.rstrip("/"),
         "PLEX_TOKEN": secret("PLEX_TOKEN", update.plex_token, settings.plex_token),
         "PLEX_LIBRARY_NAMES": ",".join(update.plex_library_names),
@@ -79,7 +82,7 @@ def save_config(settings: Settings, update: ServiceConfigUpdate) -> None:
             settings.legacy_seerr_api_key,
         ),
         "SYNC_INTERVAL_MINUTES": str(update.sync_interval_minutes),
-    }
+    })
 
     settings.config_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = settings.config_path.with_suffix(settings.config_path.suffix + ".tmp")

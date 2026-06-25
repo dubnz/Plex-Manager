@@ -97,7 +97,7 @@ Status: Web UI is running on CT 100 with real services configured and validated.
 Completed:
 
 - SSH to Proxmox works via the `proxmox` alias.
-- CT 100 is running as `plex-manager` at `192.168.158.160`.
+- CT 100 is running as `plex-manager` at `<lxc-ip>`.
 - Root cause for the browser not loading was that `plex-manager.service` was enabled but inactive and had never logged a startup attempt.
 - Started and enabled the service path in CT 100; app now listens on `0.0.0.0:8000`.
 - Added web Settings for Plex, Tautulli, Sonarr, Radarr, and Seerr URLs/keys.
@@ -115,13 +115,13 @@ Completed:
 
 Verification:
 
-- `curl http://192.168.158.160:8000/api/status`: returns `demo_mode=false` and selected libraries `Movies`, `TV`.
-- `curl http://192.168.158.160:8000/api/config`: returns non-secret config metadata.
+- `curl http://<lxc-ip>:8000/api/status`: returns `demo_mode=false` and selected libraries `Movies`, `TV`.
+- `curl http://<lxc-ip>:8000/api/config`: returns non-secret config metadata.
 - `POST /api/config/validate`: returns OK for Plex, Tautulli, Sonarr, Radarr, Seerr, and Legacy Overseerr.
 - `POST /api/sync/run`: synced 856 Plex items from selected libraries with no warnings.
 - `GET /api/media?library=Movies`: returns 733 rows; 733 have size, 190 have play/history fields, 726 have requester data.
 - `GET /api/media?library=TV`: returns 123 rows; 114 have Sonarr size data, 57 have play/history fields, 108 have requester data.
-- Browser verification against `http://192.168.158.160:8000`: page title is `Plex Manager`; nav shows `Movies`, `TV`, and `Settings`; Movies and TV tables include Plays, Last played, Requested by, Watched by, Status, and Size columns; table overflow is horizontally scrollable; Settings loads six stored-key states; Test connections returns six OK rows; console warnings/errors are empty.
+- Browser verification against `http://<lxc-ip>:8000`: page title is `Plex Manager`; nav shows `Movies`, `TV`, and `Settings`; Movies and TV tables include Plays, Last played, Requested by, Watched by, Status, and Size columns; table overflow is horizontally scrollable; Settings loads six stored-key states; Test connections returns six OK rows; console warnings/errors are empty.
 - CT 100 repo was fast-forwarded to `bb26ffb`; local and GitHub `master` match.
 
 Next step:

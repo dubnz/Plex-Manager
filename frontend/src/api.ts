@@ -2,6 +2,8 @@ import type {
   ConnectionValidationResponse,
   DeleteExecuteResponse,
   DeleteDryRunPlan,
+  DuplicatesListResponse,
+  DuplicatesDryRunPlan,
   MediaListResponse,
   ServiceConfigResponse,
   ServiceConfigUpdate,
@@ -84,4 +86,22 @@ export async function executeDelete(
     throw new Error(`Delete failed with ${response.status}`);
   }
   return response.json() as Promise<DeleteExecuteResponse>;
+}
+
+export async function getDuplicates(library?: string): Promise<DuplicatesListResponse> {
+  const params = library ? new URLSearchParams({ library }) : new URLSearchParams();
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return getJson<DuplicatesListResponse>(`/api/duplicates${qs}`);
+}
+
+export async function createDuplicatesDryRun(ids: number[]): Promise<DuplicatesDryRunPlan> {
+  const response = await fetch("/api/duplicates/dry-run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ media_item_ids: ids })
+  });
+  if (!response.ok) {
+    throw new Error(`Duplicates dry-run failed with ${response.status}`);
+  }
+  return response.json() as Promise<DuplicatesDryRunPlan>;
 }

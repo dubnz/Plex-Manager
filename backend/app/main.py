@@ -18,7 +18,7 @@ def create_app() -> FastAPI:
     if settings.demo_mode:
         db.seed_demo_data(conn)
 
-    app = FastAPI(title="arr Media Manager", version="0.1.0")
+    app = FastAPI(title="Plex Media Manager", version="0.1.0")
     app.state.settings = settings
     app.state.db = conn
     app.include_router(router)

@@ -96,6 +96,44 @@ export interface MediaItem {
   manager_id: number | null;
   available: boolean;
   file_size_bytes: number;
+  file_paths: string[];
+}
+
+export interface DuplicateItem extends MediaItem {
+  local_paths: string[];
+  nas_paths: string[];
+}
+
+export interface DuplicatesListResponse {
+  items: DuplicateItem[];
+  total: number;
+  total_reclaimable_bytes: number;
+  demo_mode: boolean;
+}
+
+export interface DuplicatesDryRunStep {
+  service: string;
+  action: string;
+  dry_run: boolean;
+  detail: string;
+}
+
+export interface DuplicatesDryRunItem {
+  media_item_id: number;
+  title: string;
+  library: string;
+  manager_kind: string;
+  local_paths: string[];
+  nas_paths: string[];
+  reclaimable_bytes: number;
+  steps: DuplicatesDryRunStep[];
+  warnings: string[];
+}
+
+export interface DuplicatesDryRunPlan {
+  items: DuplicatesDryRunItem[];
+  total_reclaimable_bytes: number;
+  global_warnings: string[];
 }
 
 export interface MediaListResponse {

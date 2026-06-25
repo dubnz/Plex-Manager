@@ -695,3 +695,41 @@ td span {
     min-width: 960px;
   }
 }
+
+/* Duplicates tab */
+.path-cell {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  font-family: var(--font-mono, monospace);
+  padding: 2px 5px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.local-path {
+  background: color-mix(in srgb, var(--danger, #ef4444) 12%, transparent);
+  color: var(--text);
+}
+.nas-path {
+  background: color-mix(in srgb, var(--accent, #3b82f6) 12%, transparent);
+  color: var(--text);
+}
+.path-detail-row td {
+  padding: 0.5rem 0.75rem 1rem;
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+}
+.path-detail {
+  display: flex;
+  gap: 2rem;
+  font-size: 0.82rem;
+}
+.path-detail ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.2rem;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.78rem;
+  line-height: 1.6;
+}

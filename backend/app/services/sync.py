@@ -157,8 +157,16 @@ async def run_sync(settings: Settings, conn: sqlite3.Connection) -> SyncRunRespo
 
     for section in selected:
         items = await plex.list_items(section.key)
+        is_tv = section.type == "show"
+        episode_paths: dict[str, list[str]] = {}
+        if is_tv:
+            try:
+                episode_paths = await plex.list_episode_paths_by_show(section.key)
+            except Exception:
+                pass
+
         for item in items:
-            media_type = "show" if section.type == "show" or item.media_type == "show" else "movie"
+            media_type = "show" if is_tv or item.media_type == "show" else "movie"
             manager_kind = "none"
             manager_id = None
             manager_info: ManagerInfo | None = None
@@ -187,6 +195,11 @@ async def run_sync(settings: Settings, conn: sqlite3.Connection) -> SyncRunRespo
             file_size_bytes = manager_info.file_size_bytes if manager_info and manager_info.file_size_bytes else item.file_size_bytes
             available = manager_info.available if manager_info else True
 
+            if media_type == "show":
+                file_paths = list(dict.fromkeys(episode_paths.get(item.rating_key, [])))
+            else:
+                file_paths = list(item.file_paths)
+
             rows.append(
                 {
                     "plex_rating_key": item.rating_key,
@@ -204,6 +217,7 @@ async def run_sync(settings: Settings, conn: sqlite3.Connection) -> SyncRunRespo
                     "manager_id": manager_id,
                     "available": available,
                     "file_size_bytes": file_size_bytes,
+                    "file_paths": file_paths,
                 }
             )
 
