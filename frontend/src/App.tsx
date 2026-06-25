@@ -1,34 +1,68 @@
 import {
   Archive,
+  ArrowDown,
+  ArrowUp,
   CheckCircle2,
-  Database,
   Download,
   KeyRound,
+  PanelRightOpen,
   RefreshCw,
   Save,
   Search,
   Settings,
   ShieldCheck,
+  SlidersHorizontal,
   Tags,
-  Trash2
+  Trash2,
+  X
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { createDeleteDryRun, getConfig, getMedia, getStatus, runSync, saveConfig, validateConfig } from "./api";
+import { createDeleteDryRun, executeDelete, getConfig, getMedia, getStatus, runSync, saveConfig, validateConfig } from "./api";
 import { buildMockDryRun, mockMedia, mockStatus } from "./lib/mockData";
 import { filterMedia, toCsv } from "./lib/filters";
 import { formatBytes, formatDate } from "./lib/format";
 import type {
   ConnectionValidationResponse,
+  DeleteExecuteResponse,
   DeleteDryRunPlan,
   FilterState,
   MediaItem,
   ServiceConfigResponse,
   ServiceConfigUpdate,
+  SortKey,
   StatusResponse
 } from "./types";
 
 const FALLBACK_LIBRARIES = ["Movies", "TV Shows"];
+const DEFAULT_COLUMN_FILTERS = {
+  title: "",
+  added_at: "",
+  play_count: "",
+  last_played: "",
+  requested_by: "",
+  watched_by: "",
+  available: "all" as const,
+  file_size_bytes: ""
+};
+const DEFAULT_FILTERS: FilterState = {
+  search: "",
+  quickFilter: "all",
+  availability: "all",
+  minPlayCount: 0,
+  columnFilters: DEFAULT_COLUMN_FILTERS,
+  sort: { key: "added_at", direction: "asc" }
+};
+const SORTABLE_COLUMNS: Array<{ key: SortKey; label: string }> = [
+  { key: "title", label: "Title" },
+  { key: "added_at", label: "Added" },
+  { key: "play_count", label: "Plays" },
+  { key: "last_played", label: "Last played" },
+  { key: "requested_by", label: "Requested by" },
+  { key: "watched_by", label: "Watched by" },
+  { key: "available", label: "Status" },
+  { key: "file_size_bytes", label: "Size" }
+];
 
 type View = "media" | "settings";
 
@@ -57,12 +91,11 @@ export function App() {
   const [items, setItems] = useState<MediaItem[]>(mockMedia);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [dryRunPlan, setDryRunPlan] = useState<DeleteDryRunPlan | null>(null);
-  const [filters, setFilters] = useState<FilterState>({
-    search: "",
-    quickFilter: "all",
-    availability: "all",
-    minPlayCount: 0
-  });
+  const [deleteResult, setDeleteResult] = useState<DeleteExecuteResponse | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [apiNote, setApiNote] = useState("Loading API status...");
   const [syncMessage, setSyncMessage] = useState("");
   const libraries = status.selected_libraries.length ? status.selected_libraries : FALLBACK_LIBRARIES;
@@ -87,6 +120,9 @@ export function App() {
     loadMedia(activeLibrary);
     setSelectedIds(new Set());
     setDryRunPlan(null);
+    setDeleteResult(null);
+    setDeleteMessage("");
+    setPreviewOpen(false);
   }, [activeLibrary]);
 
   const visibleItems = useMemo(() => filterMedia(items, filters), [items, filters]);
@@ -95,15 +131,65 @@ export function App() {
     [selectedIds, visibleItems]
   );
   const allVisibleSelected = visibleItems.length > 0 && visibleItems.every((item) => selectedIds.has(item.id));
+  const activeColumnFilterCount =
+    Object.entries(filters.columnFilters).filter(([key, value]) => key !== "available" && String(value).trim()).length +
+    (filters.columnFilters.available === "all" ? 0 : 1);
 
   async function runDryDelete() {
     if (selectedIds.size === 0) return;
     const ids = [...selectedIds];
+    setDeleteResult(null);
+    setDeleteMessage("");
     try {
       setDryRunPlan(await createDeleteDryRun(ids));
     } catch {
       setDryRunPlan(buildMockDryRun(visibleItems.filter((item) => selectedIds.has(item.id))));
     }
+    setPreviewOpen(true);
+  }
+
+  async function executeConfirmedDelete(confirmation: string) {
+    if (selectedIds.size === 0) return;
+    setDeleteBusy(true);
+    setDeleteMessage("Deleting selected media...");
+    try {
+      const result = await executeDelete([...selectedIds], confirmation);
+      setDeleteResult(result);
+      setDeleteMessage(`Delete finished for ${result.deleted_count} item(s).`);
+      setSelectedIds(new Set());
+      await loadMedia(activeLibrary);
+    } catch (error) {
+      setDeleteMessage(error instanceof Error ? error.message : "Delete failed.");
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  function updateSort(key: SortKey) {
+    setFilters((current) => ({
+      ...current,
+      sort: {
+        key,
+        direction: current.sort.key === key && current.sort.direction === "asc" ? "desc" : "asc"
+      }
+    }));
+  }
+
+  function updateColumnFilter<K extends keyof FilterState["columnFilters"]>(
+    key: K,
+    value: FilterState["columnFilters"][K]
+  ) {
+    setFilters((current) => ({
+      ...current,
+      columnFilters: {
+        ...current.columnFilters,
+        [key]: value
+      }
+    }));
+  }
+
+  function resetColumnFilters() {
+    setFilters((current) => ({ ...current, columnFilters: DEFAULT_COLUMN_FILTERS }));
   }
 
   async function syncNow() {
@@ -123,7 +209,7 @@ export function App() {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `plex-manager-${activeLibrary.toLowerCase().replace(/\s+/g, "-")}.csv`;
+    anchor.download = `arr-media-manager-${activeLibrary.toLowerCase().replace(/\s+/g, "-")}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -150,10 +236,10 @@ export function App() {
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
-            <Database size={20} />
+            <img src="/arr-media-manager-icon.svg" alt="" />
           </div>
           <div>
-            <strong>Plex Manager</strong>
+            <strong>arr Media Manager</strong>
             <span>{apiNote}</span>
           </div>
         </div>
@@ -259,6 +345,12 @@ export function App() {
                 <Trash2 size={16} />
                 Dry-run delete
               </button>
+              {dryRunPlan && !previewOpen ? (
+                <button onClick={() => setPreviewOpen(true)}>
+                  <PanelRightOpen size={16} />
+                  View delete preview
+                </button>
+              ) : null}
               <button disabled={!selectedIds.size}>
                 <Tags size={16} />
                 Mark unavailable
@@ -280,6 +372,14 @@ export function App() {
                 <span>{visibleItems.length} filtered</span>
                 <span>{selectedIds.size} selected</span>
                 <span>{formatBytes(visibleItems.reduce((sum, item) => sum + item.file_size_bytes, 0))} visible</span>
+                <span>Sorted by {SORTABLE_COLUMNS.find((column) => column.key === filters.sort.key)?.label}</span>
+                <span>{activeColumnFilterCount} column filters</span>
+                {activeColumnFilterCount > 0 ? (
+                  <button className="text-button" onClick={resetColumnFilters}>
+                    <SlidersHorizontal size={15} />
+                    Clear column filters
+                  </button>
+                ) : null}
               </div>
 
               <table>
@@ -288,14 +388,91 @@ export function App() {
                     <th className="select-cell">
                       <input type="checkbox" checked={allVisibleSelected} onChange={toggleVisibleSelection} />
                     </th>
-                    <th>Title</th>
-                    <th>Added</th>
-                    <th>Plays</th>
-                    <th>Last played</th>
-                    <th>Requested by</th>
-                    <th>Watched by</th>
-                    <th>Status</th>
-                    <th>Size</th>
+                    {SORTABLE_COLUMNS.map((column) => (
+                      <SortableHeader
+                        key={column.key}
+                        label={column.label}
+                        sortKey={column.key}
+                        activeSortKey={filters.sort.key}
+                        direction={filters.sort.direction}
+                        onSort={updateSort}
+                      />
+                    ))}
+                  </tr>
+                  <tr className="column-filter-row">
+                    <th className="select-cell" />
+                    <th>
+                      <input
+                        aria-label="Filter title"
+                        value={filters.columnFilters.title}
+                        onChange={(event) => updateColumnFilter("title", event.target.value)}
+                        placeholder="Filter title"
+                      />
+                    </th>
+                    <th>
+                      <input
+                        aria-label="Filter added"
+                        value={filters.columnFilters.added_at}
+                        onChange={(event) => updateColumnFilter("added_at", event.target.value)}
+                        placeholder="Date"
+                      />
+                    </th>
+                    <th>
+                      <input
+                        aria-label="Filter plays"
+                        value={filters.columnFilters.play_count}
+                        onChange={(event) => updateColumnFilter("play_count", event.target.value)}
+                        placeholder="Plays"
+                      />
+                    </th>
+                    <th>
+                      <input
+                        aria-label="Filter last played"
+                        value={filters.columnFilters.last_played}
+                        onChange={(event) => updateColumnFilter("last_played", event.target.value)}
+                        placeholder="Last"
+                      />
+                    </th>
+                    <th>
+                      <input
+                        aria-label="Filter requester"
+                        value={filters.columnFilters.requested_by}
+                        onChange={(event) => updateColumnFilter("requested_by", event.target.value)}
+                        placeholder="Requester"
+                      />
+                    </th>
+                    <th>
+                      <input
+                        aria-label="Filter watchers"
+                        value={filters.columnFilters.watched_by}
+                        onChange={(event) => updateColumnFilter("watched_by", event.target.value)}
+                        placeholder="Watcher"
+                      />
+                    </th>
+                    <th>
+                      <select
+                        aria-label="Filter status"
+                        value={filters.columnFilters.available}
+                        onChange={(event) =>
+                          updateColumnFilter(
+                            "available",
+                            event.target.value as FilterState["columnFilters"]["available"]
+                          )
+                        }
+                      >
+                        <option value="all">Any</option>
+                        <option value="available">Available</option>
+                        <option value="unavailable">Unavailable</option>
+                      </select>
+                    </th>
+                    <th>
+                      <input
+                        aria-label="Filter size"
+                        value={filters.columnFilters.file_size_bytes}
+                        onChange={(event) => updateColumnFilter("file_size_bytes", event.target.value)}
+                        placeholder="Size"
+                      />
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -328,51 +505,138 @@ export function App() {
                 </tbody>
               </table>
             </section>
-
-            <aside className="preview-panel" aria-label="Delete preview">
-              <div className="preview-heading">
-                <ShieldCheck size={19} />
-                <div>
-                  <h2>Delete preview</h2>
-                  <p>No destructive action will run until confirmed.</p>
-                </div>
-              </div>
-
-              {dryRunPlan ? (
-                <div className="dry-run">
-                  <div className="estimate">
-                    <span>Storage reclaim estimate</span>
-                    <strong>{formatBytes(dryRunPlan.storage_reclaim_estimate_bytes)}</strong>
-                  </div>
-                  {dryRunPlan.global_warnings.map((warning) => (
-                    <p className="warning" key={warning}>{warning}</p>
-                  ))}
-                  {dryRunPlan.items.map((item) => (
-                    <div className="plan-item" key={item.media_item_id}>
-                      <strong>{item.title}</strong>
-                      <span>{item.library} · {item.manager_kind}</span>
-                      <ol>
-                        {item.steps.map((step) => (
-                          <li key={`${item.media_item_id}-${step.service}-${step.action}`}>
-                            <b>{step.service}</b>
-                            <small>{step.detail}</small>
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="empty-preview">
-                  <Trash2 size={28} />
-                  <p>Select media and run a dry-run delete to see the exact Sonarr/Radarr, Seerr, Plex, and local DB steps.</p>
-                </div>
-              )}
-            </aside>
           </div>
+          <DeletePreviewDrawer
+            plan={dryRunPlan}
+            result={deleteResult}
+            message={deleteMessage}
+            busy={deleteBusy}
+            open={previewOpen}
+            onClose={() => setPreviewOpen(false)}
+            onExecute={executeConfirmedDelete}
+          />
         </main>
       )}
     </div>
+  );
+}
+
+function SortableHeader({
+  label,
+  sortKey,
+  activeSortKey,
+  direction,
+  onSort
+}: {
+  label: string;
+  sortKey: SortKey;
+  activeSortKey: SortKey;
+  direction: "asc" | "desc";
+  onSort: (key: SortKey) => void;
+}) {
+  const isActive = activeSortKey === sortKey;
+  return (
+    <th aria-sort={isActive ? (direction === "asc" ? "ascending" : "descending") : "none"}>
+      <button className={`sort-button ${isActive ? "active" : ""}`} onClick={() => onSort(sortKey)}>
+        <span>{label}</span>
+        {isActive ? (direction === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : null}
+      </button>
+    </th>
+  );
+}
+
+function DeletePreviewDrawer({
+  plan,
+  result,
+  message,
+  busy,
+  open,
+  onClose,
+  onExecute
+}: {
+  plan: DeleteDryRunPlan | null;
+  result: DeleteExecuteResponse | null;
+  message: string;
+  busy: boolean;
+  open: boolean;
+  onClose: () => void;
+  onExecute: (confirmation: string) => Promise<void>;
+}) {
+  const [confirmation, setConfirmation] = useState("");
+
+  if (!open || !plan) return null;
+  const canExecute = confirmation === "DELETE" && !busy;
+
+  return (
+    <>
+      <button className="drawer-backdrop" aria-label="Close delete preview" onClick={onClose} />
+      <aside className="preview-drawer" aria-label="Delete preview">
+        <div className="preview-heading">
+          <ShieldCheck size={19} />
+          <div>
+            <h2>Delete preview</h2>
+            <p>No destructive action will run until confirmed.</p>
+          </div>
+          <button className="drawer-close" title="Close delete preview" aria-label="Close delete preview" onClick={onClose}>
+            <X size={17} />
+          </button>
+        </div>
+
+        <div className="dry-run">
+          <div className="estimate">
+            <span>Storage reclaim estimate</span>
+            <strong>{formatBytes(plan.storage_reclaim_estimate_bytes)}</strong>
+          </div>
+          {plan.global_warnings.map((warning) => (
+            <p className="warning" key={warning}>{warning}</p>
+          ))}
+          {plan.items.map((item) => (
+            <div className="plan-item" key={item.media_item_id}>
+              <strong>{item.title}</strong>
+              <span>{item.library} · {item.manager_kind}</span>
+              <ol>
+                {item.steps.map((step) => (
+                  <li key={`${item.media_item_id}-${step.service}-${step.action}`}>
+                    <b>{step.service}</b>
+                    <small>{step.detail}</small>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ))}
+        </div>
+
+        <section className="execute-panel" aria-label="Real delete confirmation">
+          <h3>Execute deletion</h3>
+          <p>
+            This calls Radarr/Sonarr with delete files enabled for the selected items. Type <strong>DELETE</strong> to unlock it.
+          </p>
+          <label className="field">
+            <span>Confirmation</span>
+            <input
+              value={confirmation}
+              onChange={(event) => setConfirmation(event.target.value)}
+              placeholder="Type DELETE"
+              autoComplete="off"
+            />
+          </label>
+          <button className="danger execute-button" disabled={!canExecute} onClick={() => onExecute(confirmation)}>
+            <Trash2 size={16} />
+            Execute confirmed delete
+          </button>
+          {message ? <p className="execute-message">{message}</p> : null}
+          {result ? (
+            <div className="execute-result">
+              <strong>{result.deleted_count} item(s) processed</strong>
+              <span>{formatBytes(result.storage_reclaim_estimate_bytes)} requested reclaim</span>
+              {result.global_warnings.map((warning) => (
+                <p className="warning" key={warning}>{warning}</p>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      </aside>
+    </>
   );
 }
 

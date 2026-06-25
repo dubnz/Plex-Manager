@@ -196,6 +196,17 @@ def get_media_by_ids(conn: sqlite3.Connection, ids: list[int]) -> list[MediaItem
     return [_row_to_media_item(row) for row in rows]
 
 
+def mark_media_unavailable(conn: sqlite3.Connection, ids: list[int]) -> None:
+    if not ids:
+        return
+    placeholders = ",".join("?" for _ in ids)
+    conn.execute(
+        f"UPDATE media_item SET available = 0 WHERE id IN ({placeholders})",
+        tuple(ids),
+    )
+    conn.commit()
+
+
 def _parse_datetime(value: str | None) -> datetime | None:
     if not value:
         return None

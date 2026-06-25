@@ -58,3 +58,39 @@ def test_sync_route_blocks_placeholder_plex_token(monkeypatch, tmp_path) -> None
     assert response.status_code == 200
     assert response.json()["status"] == "blocked"
     assert "Plex token" in response.json()["detail"]
+
+
+def test_delete_execute_requires_confirmation(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("PLEX_MANAGER_DEMO_MODE", "true")
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "demo.db"))
+
+    from app.main import create_app
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/actions/delete/execute",
+        json={"media_item_ids": [1], "delete_files": True, "confirmation": "delete"},
+    )
+
+    assert response.status_code == 400
+    assert "DELETE" in response.json()["detail"]
+
+
+def test_delete_execute_demo_marks_cache_unavailable(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("PLEX_MANAGER_DEMO_MODE", "true")
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "demo.db"))
+
+    from app.main import create_app
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/actions/delete/execute",
+        json={"media_item_ids": [1], "delete_files": True, "confirmation": "DELETE"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["deleted_count"] == 1
+
+    media = client.get("/api/media", params={"library": "Movies"}).json()["items"]
+    deleted = next(item for item in media if item["id"] == 1)
+    assert deleted["available"] is False

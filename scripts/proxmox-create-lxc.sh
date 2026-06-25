@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Plex Manager native LXC creator for Proxmox VE.
+# arr Media Manager native LXC creator for Proxmox VE.
 # Inspired by the Community Scripts flow: run on the Proxmox host, choose default
 # or advanced settings, create an LXC, then install the app inside it.
 
-APP="Plex Manager"
+APP="arr Media Manager"
 APP_SLUG="plex-manager"
 APP_DIR="${APP_DIR:-/opt/plex-manager}"
 DEFAULT_REPO_URL="${DEFAULT_REPO_URL:-https://github.com/dubnz/Plex-Manager.git}"
@@ -219,7 +219,7 @@ install_from_repo_inside_ct() {
 run_inner_installer() {
   local app_q
   app_q="$(shell_quote "$APP_DIR")"
-  msg "Running native Plex Manager installer inside CT $CTID"
+  msg "Running native arr Media Manager installer inside CT $CTID"
   pct exec "$CTID" -- bash -lc "chmod +x $app_q/scripts/install-lxc.sh && APP_DIR=$app_q $app_q/scripts/install-lxc.sh"
 }
 
@@ -295,7 +295,7 @@ collect_settings() {
   fi
 
   if [[ -z "$REPO_URL" && -z "$source_dir" ]]; then
-    die "Set REPO_URL=https://... or run this script from a checked-out Plex Manager repo."
+    die "Set REPO_URL=https://... or run this script from a checked-out arr Media Manager repo."
   fi
 
   if ! is_yes "$var_unattended"; then

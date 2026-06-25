@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app import db
-from app.clients.plex import PlexClient, PlexLibrarySection
+from app.clients.plex import PlexClient, PlexLibrarySection, PlexMediaSummary
 from app.clients.radarr import RadarrClient
 from app.clients.seerr import SeerrClient
 from app.clients.sonarr import SonarrClient
@@ -25,6 +25,49 @@ class ManagerInfo:
     id: int
     file_size_bytes: int
     available: bool
+    tmdb_id: int | None = None
+    tvdb_id: int | None = None
+    imdb_id: str | None = None
+
+
+@dataclass
+class ManagerIndexes:
+    by_title_year: dict[tuple[str, int | None], ManagerInfo] = field(default_factory=dict)
+    by_title: dict[str, ManagerInfo | None] = field(default_factory=dict)
+    by_tmdb: dict[int, ManagerInfo] = field(default_factory=dict)
+    by_tvdb: dict[int, ManagerInfo] = field(default_factory=dict)
+    by_imdb: dict[str, ManagerInfo] = field(default_factory=dict)
+
+    def add(self, *, title: str, year: int | None, info: ManagerInfo) -> None:
+        title_key = _title_lookup_key(title)
+        if not title_key:
+            return
+        self.by_title_year.setdefault((title_key, year), info)
+        existing = self.by_title.get(title_key)
+        if existing is None and title_key in self.by_title:
+            return
+        if existing and existing.id != info.id:
+            self.by_title[title_key] = None
+        else:
+            self.by_title[title_key] = info
+        if info.tmdb_id is not None:
+            self.by_tmdb.setdefault(info.tmdb_id, info)
+        if info.tvdb_id is not None:
+            self.by_tvdb.setdefault(info.tvdb_id, info)
+        if info.imdb_id:
+            self.by_imdb.setdefault(info.imdb_id, info)
+
+    def find(self, item: PlexMediaSummary) -> ManagerInfo | None:
+        if item.tmdb_id is not None and item.tmdb_id in self.by_tmdb:
+            return self.by_tmdb[item.tmdb_id]
+        if item.tvdb_id is not None and item.tvdb_id in self.by_tvdb:
+            return self.by_tvdb[item.tvdb_id]
+        if item.imdb_id and item.imdb_id in self.by_imdb:
+            return self.by_imdb[item.imdb_id]
+        title_key = _title_lookup_key(item.title)
+        if (title_key, item.year) in self.by_title_year:
+            return self.by_title_year[(title_key, item.year)]
+        return self.by_title.get(title_key)
 
 
 @dataclass
@@ -51,12 +94,30 @@ class RequestInfo:
 class RequestIndexes:
     by_rating_key: dict[str, RequestInfo] = field(default_factory=dict)
     by_manager: dict[tuple[str, int], RequestInfo] = field(default_factory=dict)
+    by_tmdb: dict[int, RequestInfo] = field(default_factory=dict)
+    by_tvdb: dict[int, RequestInfo] = field(default_factory=dict)
+    by_imdb: dict[str, RequestInfo] = field(default_factory=dict)
 
-    def find(self, *, rating_key: str, manager_kind: str, manager_id: int | None) -> RequestInfo | None:
+    def find(
+        self,
+        *,
+        rating_key: str,
+        manager_kind: str,
+        manager_id: int | None,
+        tmdb_id: int | None,
+        tvdb_id: int | None,
+        imdb_id: str | None,
+    ) -> RequestInfo | None:
         if rating_key in self.by_rating_key:
             return self.by_rating_key[rating_key]
         if manager_id is not None and (manager_kind, manager_id) in self.by_manager:
             return self.by_manager[(manager_kind, manager_id)]
+        if tmdb_id is not None and tmdb_id in self.by_tmdb:
+            return self.by_tmdb[tmdb_id]
+        if tvdb_id is not None and tvdb_id in self.by_tvdb:
+            return self.by_tvdb[tvdb_id]
+        if imdb_id and imdb_id in self.by_imdb:
+            return self.by_imdb[imdb_id]
         return None
 
 
@@ -101,21 +162,27 @@ async def run_sync(settings: Settings, conn: sqlite3.Connection) -> SyncRunRespo
             manager_kind = "none"
             manager_id = None
             manager_info: ManagerInfo | None = None
-            lookup_key = _media_lookup_key(item.title, item.year)
-            if media_type == "movie" and lookup_key in radarr_movies:
-                manager_info = radarr_movies[lookup_key]
+            if media_type == "movie":
+                manager_info = radarr_movies.find(item)
                 manager_kind = "radarr"
-                manager_id = manager_info.id
-            if media_type == "show" and lookup_key in sonarr_series:
-                manager_info = sonarr_series[lookup_key]
+            if media_type == "show":
+                manager_info = sonarr_series.find(item)
                 manager_kind = "sonarr"
+            if manager_info:
                 manager_id = manager_info.id
+            else:
+                manager_kind = "none"
 
             stats = watch_stats.get(item.rating_key, WatchStats())
+            play_count = max(stats.play_count, item.play_count)
+            last_played = _latest_datetime(stats.last_played, item.last_played)
             request = request_indexes.find(
                 rating_key=item.rating_key,
                 manager_kind=manager_kind,
                 manager_id=manager_id,
+                tmdb_id=item.tmdb_id or (manager_info.tmdb_id if manager_info else None),
+                tvdb_id=item.tvdb_id or (manager_info.tvdb_id if manager_info else None),
+                imdb_id=item.imdb_id or (manager_info.imdb_id if manager_info else None),
             )
             file_size_bytes = manager_info.file_size_bytes if manager_info and manager_info.file_size_bytes else item.file_size_bytes
             available = manager_info.available if manager_info else True
@@ -128,8 +195,8 @@ async def run_sync(settings: Settings, conn: sqlite3.Connection) -> SyncRunRespo
                     "title": item.title,
                     "year": item.year,
                     "added_at": item.added_at.isoformat(),
-                    "play_count": stats.play_count,
-                    "last_played": stats.last_played.isoformat() if stats.last_played else None,
+                    "play_count": play_count,
+                    "last_played": last_played.isoformat() if last_played else None,
                     "watched_by": sorted(stats.watched_by, key=str.lower),
                     "requested_by": request.requested_by if request else None,
                     "request_date": request.request_date.isoformat() if request and request.request_date else None,
@@ -158,44 +225,55 @@ def _selected_sections(
     return [section for section in sections if section.title in selected]
 
 
-async def _radarr_movie_info(settings: Settings) -> dict[tuple[str, int | None], ManagerInfo]:
+async def _radarr_movie_info(settings: Settings) -> ManagerIndexes:
+    indexes = ManagerIndexes()
     if is_placeholder(settings.radarr_api_key):
-        return {}
+        return indexes
     try:
         movies = await RadarrClient(settings.radarr_url, settings.radarr_api_key).list_movies()
     except Exception:
-        return {}
-    return {
-        _media_lookup_key(str(movie.get("title", "")), _int_or_none(movie.get("year"))): ManagerInfo(
+        return indexes
+    for movie in movies:
+        if not movie.get("title") or movie.get("id") is None:
+            continue
+        info = ManagerInfo(
             id=int(movie["id"]),
             file_size_bytes=_int_or_none(movie.get("sizeOnDisk")) or 0,
             available=bool(movie.get("hasFile") or movie.get("movieFileId") or movie.get("sizeOnDisk")),
+            tmdb_id=_int_or_none(movie.get("tmdbId")),
+            tvdb_id=_int_or_none(movie.get("tvdbId")),
+            imdb_id=_clean_string(movie.get("imdbId")),
         )
-        for movie in movies
-        if movie.get("title") and movie.get("id") is not None
-    }
+        for title in _manager_titles(movie):
+            indexes.add(title=title, year=_int_or_none(movie.get("year")), info=info)
+    return indexes
 
 
-async def _sonarr_series_info(settings: Settings) -> dict[tuple[str, int | None], ManagerInfo]:
+async def _sonarr_series_info(settings: Settings) -> ManagerIndexes:
+    indexes = ManagerIndexes()
     if is_placeholder(settings.sonarr_api_key):
-        return {}
+        return indexes
     try:
         series = await SonarrClient(settings.sonarr_url, settings.sonarr_api_key).list_series()
     except Exception:
-        return {}
-    infos: dict[tuple[str, int | None], ManagerInfo] = {}
+        return indexes
     for item in series:
         if not item.get("title") or item.get("id") is None:
             continue
         statistics = item.get("statistics") if isinstance(item.get("statistics"), dict) else {}
         size_on_disk = _int_or_none(statistics.get("sizeOnDisk")) or 0
         episode_file_count = _int_or_none(statistics.get("episodeFileCount")) or 0
-        infos[_media_lookup_key(str(item["title"]), _int_or_none(item.get("year")))] = ManagerInfo(
+        info = ManagerInfo(
             id=int(item["id"]),
             file_size_bytes=size_on_disk,
             available=episode_file_count > 0 or size_on_disk > 0,
+            tmdb_id=_int_or_none(item.get("tmdbId")),
+            tvdb_id=_int_or_none(item.get("tvdbId")),
+            imdb_id=_clean_string(item.get("imdbId")),
         )
-    return infos
+        for title in _manager_titles(item):
+            indexes.add(title=title, year=_int_or_none(item.get("year")), info=info)
+    return indexes
 
 
 async def _tautulli_watch_stats(settings: Settings) -> dict[str, WatchStats]:
@@ -275,6 +353,15 @@ def _request_indexes_from_sources(request_sources: list[list[dict[str, Any]]]) -
             manager_id = _int_or_none(media.get("externalServiceId"))
             if manager_kind and manager_id is not None:
                 indexes.by_manager.setdefault((manager_kind, manager_id), request)
+            tmdb_id = _int_or_none(media.get("tmdbId") or row.get("tmdbId"))
+            tvdb_id = _int_or_none(media.get("tvdbId") or row.get("tvdbId"))
+            imdb_id = _clean_string(media.get("imdbId") or row.get("imdbId"))
+            if tmdb_id is not None:
+                indexes.by_tmdb.setdefault(tmdb_id, request)
+            if tvdb_id is not None:
+                indexes.by_tvdb.setdefault(tvdb_id, request)
+            if imdb_id:
+                indexes.by_imdb.setdefault(imdb_id, request)
     return indexes
 
 
@@ -297,9 +384,24 @@ def _requester_name(row: dict[str, Any]) -> str | None:
     return None
 
 
-def _media_lookup_key(title: str, year: int | None) -> tuple[str, int | None]:
-    normalized = TITLE_KEY_PATTERN.sub(" ", title.lower()).strip()
-    return normalized, year
+def _title_lookup_key(title: str) -> str:
+    return TITLE_KEY_PATTERN.sub(" ", title.lower()).strip()
+
+
+def _manager_titles(row: dict[str, Any]) -> list[str]:
+    titles = [
+        _clean_string(row.get("title")),
+        _clean_string(row.get("originalTitle")),
+        _clean_string(row.get("sortTitle")),
+    ]
+    alternate_titles = row.get("alternateTitles")
+    if isinstance(alternate_titles, list):
+        for alternate in alternate_titles:
+            if isinstance(alternate, dict):
+                titles.append(_clean_string(alternate.get("title")))
+            else:
+                titles.append(_clean_string(alternate))
+    return list(dict.fromkeys(title for title in titles if title))
 
 
 def _clean_string(value: Any) -> str | None:
@@ -336,3 +438,9 @@ def _parse_datetime(value: Any) -> datetime | None:
     except ValueError:
         return None
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def _latest_datetime(first: datetime | None, second: datetime | None) -> datetime | None:
+    if first and second:
+        return max(first, second)
+    return first or second

@@ -1,10 +1,10 @@
 # Deploy
 
-This is the native Proxmox LXC deployment path for Plex Manager. Docker is not used.
+This is the native Proxmox LXC deployment path for arr Media Manager. Docker is not used.
 
 ## Shape
 
-Plex Manager runs directly inside a Debian/Ubuntu LXC container:
+arr Media Manager runs directly inside a Debian/Ubuntu LXC container:
 
 - Python FastAPI backend in `/opt/plex-manager/.venv`
 - Built Vite frontend in `/opt/plex-manager/frontend/dist`
@@ -60,7 +60,7 @@ var_bridge=vmbr0 \
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/dubnz/Plex-Manager/master/scripts/proxmox-create-lxc.sh)"
 ```
 
-The host installer creates the LXC, starts it, installs Plex Manager inside it, enables `plex-manager.service`, and then prints the next steps. It does not start the app with placeholder credentials.
+The host installer creates the LXC, starts it, installs arr Media Manager inside it, enables `plex-manager.service`, and then prints the next steps. It does not start the app with placeholder credentials.
 
 ### Option B: Manual LXC creation
 
@@ -83,7 +83,7 @@ pct start <CTID>
 pct enter <CTID>
 ```
 
-No Docker nesting flags are required for Plex Manager.
+No Docker nesting flags are required for arr Media Manager.
 
 Inside the LXC:
 

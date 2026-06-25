@@ -10,13 +10,15 @@ from app.models import (
     ConnectionValidationResponse,
     DeleteDryRunPlan,
     DeleteDryRunRequest,
+    DeleteExecuteRequest,
+    DeleteExecuteResponse,
     MediaListResponse,
     ServiceConfigResponse,
     ServiceConfigUpdate,
     StatusResponse,
     SyncRunResponse,
 )
-from app.services.cleanup import build_delete_dry_run_plan
+from app.services.cleanup import build_delete_dry_run_plan, execute_delete_plan
 from app.services.configuration import public_config, save_config
 from app.services.status import build_integration_status
 from app.services.sync import run_sync
@@ -72,7 +74,7 @@ def media(
     conn: sqlite3.Connection = Depends(get_connection),
 ) -> MediaListResponse:
     if library and library not in settings.plex_library_names:
-        raise HTTPException(status_code=400, detail=f"Library '{library}' is not selected for Plex Manager.")
+        raise HTTPException(status_code=400, detail=f"Library '{library}' is not selected for arr Media Manager.")
     items = db.list_media(conn, library=library)
     return MediaListResponse(items=items, total=len(items), demo_mode=settings.demo_mode)
 
@@ -88,6 +90,30 @@ def delete_dry_run(
     if missing_ids:
         raise HTTPException(status_code=404, detail=f"Unknown media item ids: {missing_ids}")
     return build_delete_dry_run_plan(items, delete_files=request.delete_files)
+
+
+@router.post("/actions/delete/execute", response_model=DeleteExecuteResponse)
+async def delete_execute(
+    request: DeleteExecuteRequest,
+    settings: Settings = Depends(get_settings),
+    conn: sqlite3.Connection = Depends(get_connection),
+) -> DeleteExecuteResponse:
+    items = db.get_media_by_ids(conn, request.media_item_ids)
+    found_ids = {item.id for item in items}
+    missing_ids = [item_id for item_id in request.media_item_ids if item_id not in found_ids]
+    if missing_ids:
+        raise HTTPException(status_code=404, detail=f"Unknown media item ids: {missing_ids}")
+    try:
+        return await execute_delete_plan(
+            settings,
+            conn,
+            items,
+            delete_files=request.delete_files,
+            confirmation=request.confirmation,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
 
 @router.post("/sync/run", response_model=SyncRunResponse)
 async def sync_run(

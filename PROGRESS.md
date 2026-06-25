@@ -127,3 +127,21 @@ Verification:
 Next step:
 
 - Continue feature work from the verified LXC deployment, starting with safer cleanup/delete workflows and any deeper per-user/per-episode history views needed beyond the current aggregate table.
+
+## 2026-06-25
+
+Task: Improve column enrichment and legacy request history matching.
+
+Status: Implemented locally; deployment pending.
+
+Completed:
+
+- Inspected CT 100 live cache through Proxmox. Current cache has size for 733/733 Movies and 114/123 TV rows, requester data for 726/733 Movies and 108/123 TV rows, and play history for the rows present in Tautulli history.
+- Hardened Plex parsing to capture nested media part sizes, Plex GUIDs, TMDB/TVDB/IMDB IDs, Plex view counts, and Plex last-viewed timestamps.
+- Changed Radarr/Sonarr matching from title/year only to external-ID-first matching with unique title and alternate-title fallback.
+- Changed current Seerr plus legacy Overseerr requester matching to use Plex rating key, Radarr/Sonarr ID, TMDB ID, TVDB ID, and IMDB ID.
+- Added Plex play-count/last-played fallback when Tautulli history has no row for an item.
+
+Verification:
+
+- `.venv/bin/python -m pytest backend/tests`: 16 passed.

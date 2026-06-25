@@ -1,5 +1,5 @@
 {
-  "name": "plex-manager",
+  "name": "arr-media-manager",
   "private": true,
   "version": "0.1.0",
   "description": "Self-hosted Plex library operations dashboard.",
@@ -14,4 +14,3 @@
     "node": ">=20"
   }
 }
-

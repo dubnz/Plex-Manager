@@ -1,5 +1,15 @@
 export type MediaType = "movie" | "show";
 export type IntegrationState = "ok" | "demo" | "missing" | "error" | "blocked";
+export type SortDirection = "asc" | "desc";
+export type SortKey =
+  | "title"
+  | "added_at"
+  | "play_count"
+  | "last_played"
+  | "requested_by"
+  | "watched_by"
+  | "available"
+  | "file_size_bytes";
 
 export interface IntegrationStatus {
   name: string;
@@ -118,9 +128,34 @@ export interface DeleteDryRunPlan {
   global_warnings: string[];
 }
 
+export interface DeleteExecuteResponse {
+  items: DeleteDryRunItem[];
+  deleted_count: number;
+  storage_reclaim_estimate_bytes: number;
+  global_warnings: string[];
+}
+
+export interface ColumnFilterState {
+  title: string;
+  added_at: string;
+  play_count: string;
+  last_played: string;
+  requested_by: string;
+  watched_by: string;
+  available: "all" | "available" | "unavailable";
+  file_size_bytes: string;
+}
+
+export interface SortState {
+  key: SortKey;
+  direction: SortDirection;
+}
+
 export interface FilterState {
   search: string;
   quickFilter: "all" | "never-watched" | "watched-by-no-one";
   availability: "all" | "available" | "unavailable";
   minPlayCount: number;
+  columnFilters: ColumnFilterState;
+  sort: SortState;
 }

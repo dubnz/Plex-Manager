@@ -46,6 +46,10 @@ class DeleteDryRunRequest(BaseModel):
     delete_files: bool = True
 
 
+class DeleteExecuteRequest(DeleteDryRunRequest):
+    confirmation: str
+
+
 class DeleteDryRunStep(BaseModel):
     service: str
     action: str
@@ -67,6 +71,13 @@ class DeleteDryRunPlan(BaseModel):
     items: list[DeleteDryRunItem]
     storage_reclaim_estimate_bytes: int
     requires_confirmation: bool = True
+    global_warnings: list[str] = Field(default_factory=list)
+
+
+class DeleteExecuteResponse(BaseModel):
+    items: list[DeleteDryRunItem]
+    deleted_count: int
+    storage_reclaim_estimate_bytes: int
     global_warnings: list[str] = Field(default_factory=list)
 
 

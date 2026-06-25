@@ -1,18 +1,32 @@
-# Plex Manager
+# arr Media Manager
 
-Plex Manager is a self-hosted media library operations dashboard for auditing a Plex library and planning safe cleanup actions across Plex, Tautulli, Sonarr, Radarr, and Seerr.
+arr Media Manager is a self-hosted media operations dashboard for auditing a Plex library and planning cleanup actions across Plex, Tautulli, Sonarr, Radarr, Jellyseerr/Overseerr, and optional legacy Overseerr request history.
 
-The current build is intentionally non-destructive. It supports local cache data, filtering, batch selection, CSV export, and delete dry-run previews. Real destructive actions remain blocked until authenticated read checks and explicit confirmation flows are implemented.
+Destructive actions are guarded: delete actions produce an authenticated dry-run preview first, and execution requires a typed confirmation. Radarr/Sonarr deletion is supported through their APIs; Seerr mutation remains disabled until the exact unavailable endpoint is verified against the configured service version.
 
-Service access can be configured from the web UI. Secrets are stored in the app config file (`CONFIG_PATH`, default `/var/lib/plex-manager/config.json`) and are never returned back to the browser.
+![arr Media Manager table](docs/screenshots/arr-media-manager-table.png)
 
-## Deploy on Proxmox
+![Delete preview drawer](docs/screenshots/arr-media-manager-delete-preview.png)
+
+## What It Does
+
+- Syncs selected Plex libraries into a local SQLite cache.
+- Enriches media rows with Tautulli and Plex play history, watched-by users, requesters, Radarr/Sonarr IDs, availability, and size.
+- Merges requester history from current Jellyseerr/Overseerr and optional legacy Overseerr, matching by Plex rating key, Radarr/Sonarr ID, TMDB ID, TVDB ID, and IMDB ID where available.
+- Sorts and filters by Title, Added, Plays, Last played, Requested by, Watched by, Status, and Size.
+- Exports the current table view to CSV.
+- Builds a dry-run delete preview that shows the exact Radarr/Sonarr, Seerr, Plex, and local DB steps before any destructive action.
+- Stores service credentials in the runtime config file only; secrets are never returned to the browser.
+
+## Deploy On Proxmox
 
 Run this on the Proxmox host as `root`:
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/dubnz/Plex-Manager/master/scripts/proxmox-create-lxc.sh)"
 ```
+
+The installer creates a native LXC service. Docker is not used.
 
 Then enter the created container and configure credentials:
 
@@ -22,15 +36,23 @@ systemctl start plex-manager
 systemctl status plex-manager --no-pager
 ```
 
-Open the web UI and use Settings to configure Plex, Tautulli, Sonarr, Radarr, and Seerr access. If you migrated to a new Jellyseerr/Seerr instance, you can also configure a legacy Overseerr source for read-only requester history.
-
 Open:
 
 ```text
 http://<lxc-ip>:8000
 ```
 
+Use Settings to configure Plex, Tautulli, Sonarr, Radarr, and Seerr access. If you migrated to a new Jellyseerr/Seerr instance, configure Legacy Overseerr too so older requester history is still available.
+
 See [DEPLOY.md](DEPLOY.md) for advanced and unattended install options.
+
+## Runtime Files
+
+- App checkout: `/opt/plex-manager`
+- Service: `plex-manager.service`
+- Environment file: `/etc/plex-manager.env`
+- SQLite cache: `/var/lib/plex-manager/plex-manager.db`
+- Runtime config: `/var/lib/plex-manager/config.json`
 
 ## Local Development
 

@@ -1,5 +1,6 @@
 import type {
   ConnectionValidationResponse,
+  DeleteExecuteResponse,
   DeleteDryRunPlan,
   MediaListResponse,
   ServiceConfigResponse,
@@ -67,4 +68,20 @@ export async function createDeleteDryRun(ids: number[], deleteFiles = true): Pro
     throw new Error(`Dry-run failed with ${response.status}`);
   }
   return response.json() as Promise<DeleteDryRunPlan>;
+}
+
+export async function executeDelete(
+  ids: number[],
+  confirmation: string,
+  deleteFiles = true
+): Promise<DeleteExecuteResponse> {
+  const response = await fetch("/api/actions/delete/execute", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ media_item_ids: ids, delete_files: deleteFiles, confirmation })
+  });
+  if (!response.ok) {
+    throw new Error(`Delete failed with ${response.status}`);
+  }
+  return response.json() as Promise<DeleteExecuteResponse>;
 }

@@ -1,2 +1,1 @@
-"""Plex Manager backend package."""
-
+"""arr Media Manager backend package."""

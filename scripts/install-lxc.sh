@@ -27,7 +27,7 @@ fi
 if [[ -n "$REPO_URL" && ! -d "$APP_DIR/.git" && ! -f "$APP_DIR/requirements.txt" ]]; then
   git clone "$REPO_URL" "$APP_DIR"
 elif [[ ! -f "$APP_DIR/requirements.txt" || ! -f "$APP_DIR/frontend/package.json" || ! -f "$APP_DIR/scripts/install-lxc.sh" ]]; then
-  echo "Clone or copy the Plex Manager repo to $APP_DIR first, or rerun with REPO_URL=https://..." >&2
+  echo "Clone or copy the arr Media Manager repo to $APP_DIR first, or rerun with REPO_URL=https://..." >&2
   exit 1
 fi
 
@@ -58,7 +58,7 @@ fi
 
 cat > "$SERVICE_FILE" <<SERVICE
 [Unit]
-Description=Plex Manager
+Description=arr Media Manager
 Wants=network-online.target
 After=network-online.target
 
@@ -87,7 +87,7 @@ systemctl daemon-reload
 systemctl enable plex-manager.service
 
 cat <<EOF
-Plex Manager is installed as a native LXC service.
+arr Media Manager is installed as a native LXC service.
 
 1. Start the app:
    systemctl start plex-manager
