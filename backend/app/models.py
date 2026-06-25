@@ -50,6 +50,7 @@ class DuplicateItem(MediaItem):
     nas_paths: list[str] = Field(default_factory=list)
     duplicate_versions: list[DuplicateVersion] = Field(default_factory=list)
     reclaimable_bytes: int = 0
+    quality_impact: str = "unknown"  # downgrade | same | nas_better | unknown
 
 
 class DuplicatesListResponse(BaseModel):

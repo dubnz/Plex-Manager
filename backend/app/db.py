@@ -7,7 +7,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app.models import DuplicateItem, DuplicateVersion, MediaItem
-from app.services.duplicate_analysis import build_versions, find_deletable
+from app.services.duplicate_analysis import (
+    build_versions,
+    classify_quality_impact,
+    find_deletable,
+)
 
 
 SCHEMA = """
@@ -258,6 +262,7 @@ def list_duplicates(
                 for d in deletable
             ],
             reclaimable_bytes=sum(d.local_size for d in deletable),
+            quality_impact=classify_quality_impact(deletable),
         ))
     return results
 

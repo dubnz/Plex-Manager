@@ -661,6 +661,9 @@ function DuplicatesView() {
   const [message, setMessage] = useState("Loading duplicates...");
   const [typeFilter, setTypeFilter] = useState<"all" | "movie" | "show">("all");
   const [searchFilter, setSearchFilter] = useState("");
+  // Default to the quality-safe set so a 4K local is never accidentally deleted
+  // for a lower-res NAS copy. "safe" = same resolution or NAS is higher.
+  const [qualityFilter, setQualityFilter] = useState<"safe" | "downgrade" | "unknown" | "all">("safe");
 
   useEffect(() => {
     async function load() {
@@ -669,7 +672,7 @@ function DuplicatesView() {
         setData(result);
         setMessage(result.total === 0
           ? "No duplicates found. Run a sync to update the cache."
-          : `${result.total} item(s) found with both local and NAS copies.`
+          : `${result.total} item(s) with a NAS copy · ${formatBytes(result.total_reclaimable_bytes)} total. Showing quality-safe items by default.`
         );
       } catch {
         setMessage("Failed to load duplicates. Check that the backend is reachable and a sync has run.");
@@ -678,14 +681,33 @@ function DuplicatesView() {
     load();
   }, []);
 
+  function matchesQuality(impact: string): boolean {
+    if (qualityFilter === "all") return true;
+    if (qualityFilter === "safe") return impact === "same" || impact === "nas_better";
+    return impact === qualityFilter;
+  }
+
   const items = useMemo(() => {
     if (!data) return [];
     return data.items.filter((item) => {
       if (typeFilter !== "all" && item.media_type !== typeFilter) return false;
       if (searchFilter && !item.title.toLowerCase().includes(searchFilter.toLowerCase())) return false;
+      if (!matchesQuality(item.quality_impact)) return false;
       return true;
     });
-  }, [data, typeFilter, searchFilter]);
+  }, [data, typeFilter, searchFilter, qualityFilter]);
+
+  const qualityCounts = useMemo(() => {
+    const base = { safe: 0, downgrade: 0, unknown: 0, safeBytes: 0, downgradeBytes: 0 };
+    if (!data) return base;
+    for (const item of data.items) {
+      const safe = item.quality_impact === "same" || item.quality_impact === "nas_better";
+      if (safe) { base.safe += 1; base.safeBytes += item.reclaimable_bytes; }
+      else if (item.quality_impact === "downgrade") { base.downgrade += 1; base.downgradeBytes += item.reclaimable_bytes; }
+      else base.unknown += 1;
+    }
+    return base;
+  }, [data]);
 
   const allSelected = items.length > 0 && items.every((item) => selectedIds.has(item.id));
 
@@ -753,6 +775,19 @@ function DuplicatesView() {
           <button className={typeFilter === "show" ? "active" : ""} onClick={() => setTypeFilter("show")}>TV Shows</button>
         </div>
 
+        <div className="segmented" title="Filter by what deleting the local copy does to quality">
+          <button className={qualityFilter === "safe" ? "active" : ""} onClick={() => setQualityFilter("safe")}>
+            Safe ({qualityCounts.safe})
+          </button>
+          <button className={qualityFilter === "downgrade" ? "active" : ""} onClick={() => setQualityFilter("downgrade")}>
+            Downgrade ({qualityCounts.downgrade})
+          </button>
+          <button className={qualityFilter === "unknown" ? "active" : ""} onClick={() => setQualityFilter("unknown")}>
+            Unknown ({qualityCounts.unknown})
+          </button>
+          <button className={qualityFilter === "all" ? "active" : ""} onClick={() => setQualityFilter("all")}>All</button>
+        </div>
+
         <div className="action-group">
           <button className="danger" disabled={selectedIds.size === 0} onClick={runDryRun}>
             <Trash2 size={16} />
@@ -766,6 +801,13 @@ function DuplicatesView() {
           ) : null}
         </div>
       </section>
+
+      {qualityFilter === "downgrade" ? (
+        <div className="quality-warning" role="alert">
+          ⚠️ These keep a <strong>lower-resolution</strong> NAS copy and delete your higher-resolution local file
+          ({formatBytes(qualityCounts.downgradeBytes)} across {qualityCounts.downgrade} item(s)). Review per item before any removal.
+        </div>
+      ) : null}
 
       {data && items.length > 0 ? (
         <div className="content-grid">
@@ -786,6 +828,7 @@ function DuplicatesView() {
                   <th>Title</th>
                   <th>Type</th>
                   <th>Dupe files</th>
+                  <th>Quality impact</th>
                   <th>Local quality</th>
                   <th>NAS quality</th>
                   <th>Size to reclaim</th>
@@ -805,6 +848,12 @@ function DuplicatesView() {
             </table>
           </section>
         </div>
+      ) : data && data.total > 0 ? (
+        <div className="empty-state">
+          No items match the current filters. {qualityFilter === "safe" && qualityCounts.downgrade > 0
+            ? `${qualityCounts.downgrade} item(s) are quality downgrades — switch to the "Downgrade" filter to review them.`
+            : "Try a different filter."}
+        </div>
       ) : null}
 
       {previewOpen && plan ? (
@@ -823,6 +872,18 @@ function uniqueQualities(values: string[]): string {
   if (seen.length === 0) return "—";
   if (seen.length === 1) return seen[0];
   return `${seen.length} qualities`;
+}
+
+const QUALITY_IMPACT_META: Record<string, { label: string; cls: string; title: string }> = {
+  downgrade: { label: "Downgrade", cls: "impact-downgrade", title: "Your local copy is higher resolution than the NAS copy" },
+  same: { label: "Same res", cls: "impact-same", title: "Local and NAS copy are the same resolution" },
+  nas_better: { label: "NAS better", cls: "impact-nas-better", title: "The NAS copy is higher resolution than your local copy" },
+  unknown: { label: "Unknown", cls: "impact-unknown", title: "Could not parse resolution on one side" }
+};
+
+function QualityImpactBadge({ impact }: { impact: string }) {
+  const meta = QUALITY_IMPACT_META[impact] ?? QUALITY_IMPACT_META.unknown;
+  return <span className={`impact-badge ${meta.cls}`} title={meta.title}>{meta.label}</span>;
 }
 
 function DuplicateRow({
@@ -860,6 +921,7 @@ function DuplicateRow({
         </td>
         <td>{item.media_type === "movie" ? "Movie" : "TV Show"}</td>
         <td>{fileLabel}</td>
+        <td><QualityImpactBadge impact={item.quality_impact} /></td>
         <td><span className="qual-badge local-path">{localQuality}</span></td>
         <td><span className="qual-badge nas-path">{nasQuality}</span></td>
         <td>{formatBytes(item.reclaimable_bytes)}</td>
@@ -868,7 +930,7 @@ function DuplicateRow({
       {expanded ? (
         <tr className="path-detail-row">
           <td />
-          <td colSpan={7}>
+          <td colSpan={8}>
             <div className="dupe-detail">
               <table className="dupe-episodes">
                 <thead>

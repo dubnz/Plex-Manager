@@ -1,12 +1,26 @@
 from __future__ import annotations
 
 from app.services.duplicate_analysis import (
+    DeletableVersion,
     build_versions,
     classify_location,
+    classify_quality_impact,
     find_deletable,
     parse_episode,
     parse_quality,
+    parse_resolution,
 )
+
+
+def _dv(local_q: str, nas_q: str) -> DeletableVersion:
+    return DeletableVersion(
+        identity="S01E01",
+        local_path="/mnt/local/tv/x.mkv",
+        local_size=10,
+        local_quality=local_q,
+        protected_path="/mnt/remote-tv/x.mkv",
+        protected_quality=nas_q,
+    )
 
 
 # Neutral example prefixes — the matching logic is prefix-agnostic, so these
@@ -207,3 +221,45 @@ def test_movie_local_only_not_deletable():
         PROTECTED,
     )
     assert find_deletable(versions, "movie") == []
+
+
+# --- quality impact classification ---
+
+def test_parse_resolution():
+    assert parse_resolution("WEBDL-2160p HDR10") == 2160
+    assert parse_resolution("HDTV-720p") == 720
+    assert parse_resolution("Bluray-1080p") == 1080
+    assert parse_resolution("unknown") is None
+
+
+def test_quality_impact_downgrade():
+    assert classify_quality_impact([_dv("Remux-2160p DV", "WEBDL-1080p")]) == "downgrade"
+
+
+def test_quality_impact_same():
+    assert classify_quality_impact([_dv("WEBDL-1080p", "Bluray-1080p")]) == "same"
+
+
+def test_quality_impact_nas_better():
+    assert classify_quality_impact([_dv("HDTV-720p", "WEBDL-1080p")]) == "nas_better"
+
+
+def test_quality_impact_unknown():
+    assert classify_quality_impact([_dv("WEBDL-1080p", "unknown")]) == "unknown"
+
+
+def test_quality_impact_any_downgrade_wins():
+    # One downgrade episode among same-res ones flags the whole item.
+    versions = [
+        _dv("WEBDL-1080p", "WEBDL-1080p"),
+        _dv("WEBDL-2160p", "WEBDL-1080p"),  # downgrade
+    ]
+    assert classify_quality_impact(versions) == "downgrade"
+
+
+def test_quality_impact_mixed_same_and_nas_better_is_same():
+    versions = [
+        _dv("WEBDL-1080p", "WEBDL-1080p"),  # same
+        _dv("HDTV-720p", "WEBDL-1080p"),    # nas better
+    ]
+    assert classify_quality_impact(versions) == "same"

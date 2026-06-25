@@ -211,3 +211,44 @@ def find_deletable(
 
 def _format_identity(season: int, episodes: tuple[int, ...]) -> str:
     return f"S{season:02d}" + "".join(f"E{ep:02d}" for ep in episodes)
+
+
+_RES_NUM_RE = re.compile(r"(2160|1080|720|576|480)")
+
+# Quality impact of deleting the local copy, judged by resolution.
+QualityImpact = str  # "downgrade" | "same" | "nas_better" | "unknown"
+
+
+def parse_resolution(quality: str) -> int | None:
+    match = _RES_NUM_RE.search(quality or "")
+    return int(match.group(1)) if match else None
+
+
+def classify_quality_impact(deletable: list[DeletableVersion]) -> QualityImpact:
+    """Worst-case resolution impact of deleting the local copies.
+
+    Precedence is conservative: any single downgrade flags the whole item as a
+    downgrade; an unresolved resolution flags it as unknown. Only items whose
+    deletable files are all same-or-better on the NAS are considered safe.
+    """
+    if not deletable:
+        return "unknown"
+    saw_downgrade = saw_unknown = saw_nas_better = saw_same = False
+    for d in deletable:
+        local_res = parse_resolution(d.local_quality)
+        nas_res = parse_resolution(d.protected_quality)
+        if local_res is None or nas_res is None:
+            saw_unknown = True
+        elif local_res > nas_res:
+            saw_downgrade = True
+        elif local_res < nas_res:
+            saw_nas_better = True
+        else:
+            saw_same = True
+    if saw_downgrade:
+        return "downgrade"
+    if saw_unknown:
+        return "unknown"
+    if saw_nas_better and not saw_same:
+        return "nas_better"
+    return "same"

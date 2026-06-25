@@ -108,11 +108,14 @@ export interface DuplicateVersion {
   nas_quality: string;
 }
 
+export type QualityImpact = "downgrade" | "same" | "nas_better" | "unknown";
+
 export interface DuplicateItem extends MediaItem {
   local_paths: string[];
   nas_paths: string[];
   duplicate_versions: DuplicateVersion[];
   reclaimable_bytes: number;
+  quality_impact: QualityImpact;
 }
 
 export interface DuplicatesListResponse {
