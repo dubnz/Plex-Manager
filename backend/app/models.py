@@ -36,9 +36,20 @@ class MediaItem(BaseModel):
     file_paths: list[str] = Field(default_factory=list)
 
 
+class DuplicateVersion(BaseModel):
+    identity: str  # "S01E03" for TV, "movie" for movies
+    local_path: str
+    local_size_bytes: int
+    local_quality: str
+    nas_path: str
+    nas_quality: str
+
+
 class DuplicateItem(MediaItem):
     local_paths: list[str] = Field(default_factory=list)
     nas_paths: list[str] = Field(default_factory=list)
+    duplicate_versions: list[DuplicateVersion] = Field(default_factory=list)
+    reclaimable_bytes: int = 0
 
 
 class DuplicatesListResponse(BaseModel):
@@ -64,8 +75,7 @@ class DuplicatesDryRunItem(BaseModel):
     title: str
     library: str
     manager_kind: str
-    local_paths: list[str]
-    nas_paths: list[str]
+    episode_count: int
     reclaimable_bytes: int
     steps: list[DuplicatesDryRunStep]
     warnings: list[str] = Field(default_factory=list)

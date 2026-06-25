@@ -1,0 +1,184 @@
+from __future__ import annotations
+
+from app.services.duplicate_analysis import (
+    build_versions,
+    classify_location,
+    find_deletable,
+    parse_episode,
+    parse_quality,
+)
+
+
+# Neutral example prefixes — the matching logic is prefix-agnostic, so these
+# stand in for any local vs protected layout without encoding a real deployment.
+LOCAL = ("/mnt/local/movies", "/mnt/local/tv")
+PROTECTED = ("/mnt/remote-movies", "/mnt/remote-tv")
+
+
+def _show_local(ep: int) -> str:
+    return (
+        f"/mnt/local/tv/Example Show (2024)/Season 01/"
+        f"Example Show (2024) - S01E{ep:02d} - Title [WEBDL-2160p][HDR10][EAC3 Atmos 5.1][h265]-X.mkv"
+    )
+
+
+def _show_nas(ep: int) -> str:
+    return (
+        f"/mnt/remote-tv/Example Show/Season 01/"
+        f"Example Show - S01E{ep:02d} - Title HDTV-720p.mkv"
+    )
+
+
+# --- location ---
+
+def test_classify_location():
+    assert classify_location("/mnt/local/tv/x.mkv", LOCAL, PROTECTED) == "local"
+    assert classify_location("/mnt/remote-tv/TV/x.mkv", LOCAL, PROTECTED) == "protected"
+    assert classify_location("/mnt/archive/x.mkv", LOCAL, PROTECTED) == "other"
+
+
+# --- quality parsing ---
+
+def test_parse_quality_resolution_and_source():
+    assert parse_quality("Show - S01E01 [WEBDL-2160p][HDR10][h265]-X.mkv") == "WEBDL-2160p HDR10"
+    assert parse_quality("Show - S01E01 HDTV-720p.mkv") == "HDTV-720p"
+    assert parse_quality("Movie (2002) [Remux-2160p][DV HDR10Plus].mp4") == "Remux-2160p DV"
+    assert parse_quality("Movie [Bluray-1080p][DTS 5.1][x264].mkv") == "Bluray-1080p"
+
+
+def test_parse_quality_unknown():
+    assert parse_quality("random_file.mkv") == "unknown"
+
+
+# --- episode parsing ---
+
+def test_parse_episode_single():
+    assert parse_episode("Show - S01E03 - Title.mkv") == (1, (3,))
+
+
+def test_parse_episode_multi():
+    assert parse_episode("Show - S02E05E06 - Title.mkv") == (2, (5, 6))
+
+
+def test_parse_episode_none():
+    assert parse_episode("Some Movie (2019).mkv") == (None, ())
+
+
+# --- SAFETY: protected files are never deletable ---
+
+def test_protected_file_never_deletable():
+    versions = build_versions(
+        [
+            {"path": _show_local(1), "size": 100},
+            {"path": _show_nas(1), "size": 50},
+        ],
+        "show",
+        LOCAL,
+        PROTECTED,
+    )
+    deletable = find_deletable(versions, "show")
+    assert len(deletable) == 1
+    # Only the LOCAL path is ever the delete target.
+    assert deletable[0].local_path == _show_local(1)
+    assert deletable[0].protected_path == _show_nas(1)
+    assert all(d.local_path.startswith("/mnt/local") for d in deletable)
+
+
+# --- SAFETY: partial overlap only deletes matched episodes ---
+
+def test_partial_overlap_only_matched_episodes():
+    # Local has E01, E02, E03; NAS only has E01 and E03.
+    versions = build_versions(
+        [
+            {"path": _show_local(1), "size": 10},
+            {"path": _show_local(2), "size": 20},
+            {"path": _show_local(3), "size": 30},
+            {"path": _show_nas(1), "size": 5},
+            {"path": _show_nas(3), "size": 7},
+        ],
+        "show",
+        LOCAL,
+        PROTECTED,
+    )
+    deletable = find_deletable(versions, "show")
+    identities = sorted(d.identity for d in deletable)
+    assert identities == ["S01E01", "S01E03"]  # E02 NOT deletable (no NAS copy)
+    assert sum(d.local_size for d in deletable) == 40  # 10 + 30, not E02's 20
+
+
+# --- SAFETY: no overlap => nothing deletable ---
+
+def test_no_episode_overlap_nothing_deletable():
+    versions = build_versions(
+        [
+            {"path": _show_local(1), "size": 10},  # S01E01 local
+            {"path": _show_nas(5), "size": 5},     # S01E05 nas only
+        ],
+        "show",
+        LOCAL,
+        PROTECTED,
+    )
+    assert find_deletable(versions, "show") == []
+
+
+# --- SAFETY: multi-episode local file needs ALL its episodes on NAS ---
+
+def test_multi_episode_local_requires_all_present():
+    multi = (
+        "/mnt/local/tv/Show/Season 01/Show - S01E01E02 - Title [WEBDL-1080p].mkv"
+    )
+    nas_e1 = "/mnt/remote-tv/TV/Show/Season 01/Show - S01E01 - Title HDTV-720p.mkv"
+    versions = build_versions(
+        [{"path": multi, "size": 100}, {"path": nas_e1, "size": 40}],
+        "show",
+        LOCAL,
+        PROTECTED,
+    )
+    # Only E01 on NAS, but local file also contains E02 -> not safe to delete.
+    assert find_deletable(versions, "show") == []
+
+
+# --- quality is surfaced for both sides ---
+
+def test_quality_surfaced():
+    versions = build_versions(
+        [
+            {"path": _show_local(1), "size": 10},
+            {"path": _show_nas(1), "size": 5},
+        ],
+        "show",
+        LOCAL,
+        PROTECTED,
+    )
+    d = find_deletable(versions, "show")[0]
+    assert d.local_quality == "WEBDL-2160p HDR10"
+    assert d.protected_quality == "HDTV-720p"
+
+
+# --- movies ---
+
+def test_movie_local_with_nas_copy_is_deletable():
+    versions = build_versions(
+        [
+            {"path": "/mnt/local/movies/Inception (2010)/Inception [Bluray-1080p].mkv", "size": 8000},
+            {"path": "/mnt/remote-movies/Movies/Inception (2010)/Inception 720p.mkv", "size": 4000},
+        ],
+        "movie",
+        LOCAL,
+        PROTECTED,
+    )
+    deletable = find_deletable(versions, "movie")
+    assert len(deletable) == 1
+    assert deletable[0].identity == "movie"
+    assert deletable[0].local_path.startswith("/mnt/local/movies")
+    assert deletable[0].protected_path.startswith("/mnt/remote-movies")
+
+
+def test_movie_local_only_not_deletable():
+    versions = build_versions(
+        [{"path": "/mnt/local/movies/Solo (2018)/Solo [Bluray-1080p].mkv", "size": 8000}],
+        "movie",
+        LOCAL,
+        PROTECTED,
+    )
+    assert find_deletable(versions, "movie") == []

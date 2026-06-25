@@ -99,9 +99,20 @@ export interface MediaItem {
   file_paths: string[];
 }
 
+export interface DuplicateVersion {
+  identity: string;
+  local_path: string;
+  local_size_bytes: number;
+  local_quality: string;
+  nas_path: string;
+  nas_quality: string;
+}
+
 export interface DuplicateItem extends MediaItem {
   local_paths: string[];
   nas_paths: string[];
+  duplicate_versions: DuplicateVersion[];
+  reclaimable_bytes: number;
 }
 
 export interface DuplicatesListResponse {
@@ -123,8 +134,7 @@ export interface DuplicatesDryRunItem {
   title: string;
   library: string;
   manager_kind: string;
-  local_paths: string[];
-  nas_paths: string[];
+  episode_count: number;
   reclaimable_bytes: number;
   steps: DuplicatesDryRunStep[];
   warnings: string[];

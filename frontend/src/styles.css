@@ -733,3 +733,33 @@ td span {
   font-size: 0.78rem;
   line-height: 1.6;
 }
+
+/* Duplicate quality badges + per-episode detail */
+.qual-badge {
+  display: inline-block;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.qual-badge.local-path { background: color-mix(in srgb, var(--danger, #ef4444) 16%, transparent); }
+.qual-badge.nas-path { background: color-mix(in srgb, var(--accent, #3b82f6) 16%, transparent); }
+.dupe-detail { padding: 0.25rem 0 0.5rem; }
+.dupe-episodes { width: 100%; min-width: 0; font-size: 0.8rem; }
+.dupe-episodes th {
+  text-align: left;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #94a3b8);
+  padding: 4px 8px;
+}
+.dupe-episodes td { padding: 4px 8px; vertical-align: middle; }
+.path-hint {
+  display: block;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.7rem;
+  color: var(--text-muted, #94a3b8);
+  margin-top: 2px;
+}

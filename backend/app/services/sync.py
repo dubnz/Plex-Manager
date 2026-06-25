@@ -158,10 +158,10 @@ async def run_sync(settings: Settings, conn: sqlite3.Connection) -> SyncRunRespo
     for section in selected:
         items = await plex.list_items(section.key)
         is_tv = section.type == "show"
-        episode_paths: dict[str, list[str]] = {}
+        episode_versions: dict[str, list[dict]] = {}
         if is_tv:
             try:
-                episode_paths = await plex.list_episode_paths_by_show(section.key)
+                episode_versions = await plex.list_episode_versions_by_show(section.key)
             except Exception:
                 pass
 
@@ -196,9 +196,15 @@ async def run_sync(settings: Settings, conn: sqlite3.Connection) -> SyncRunRespo
             available = manager_info.available if manager_info else True
 
             if media_type == "show":
-                file_paths = list(dict.fromkeys(episode_paths.get(item.rating_key, [])))
+                seen_paths: set[str] = set()
+                file_versions: list[dict] = []
+                for version in episode_versions.get(item.rating_key, []):
+                    path = version.get("path", "")
+                    if path and path not in seen_paths:
+                        seen_paths.add(path)
+                        file_versions.append(version)
             else:
-                file_paths = list(item.file_paths)
+                file_versions = list(item.file_versions)
 
             rows.append(
                 {
@@ -217,7 +223,7 @@ async def run_sync(settings: Settings, conn: sqlite3.Connection) -> SyncRunRespo
                     "manager_id": manager_id,
                     "available": available,
                     "file_size_bytes": file_size_bytes,
-                    "file_paths": file_paths,
+                    "file_versions": file_versions,
                 }
             )
 

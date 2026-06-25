@@ -6,7 +6,8 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 
-from app.models import DuplicateItem, MediaItem
+from app.models import DuplicateItem, DuplicateVersion, MediaItem
+from app.services.duplicate_analysis import build_versions, find_deletable
 
 
 SCHEMA = """
@@ -27,7 +28,8 @@ CREATE TABLE IF NOT EXISTS media_item (
     manager_id INTEGER,
     available INTEGER NOT NULL DEFAULT 1,
     file_size_bytes INTEGER NOT NULL DEFAULT 0,
-    file_paths_json TEXT NOT NULL DEFAULT '[]'
+    file_paths_json TEXT NOT NULL DEFAULT '[]',
+    file_versions_json TEXT NOT NULL DEFAULT '[]'
 );
 
 CREATE INDEX IF NOT EXISTS idx_media_item_library_added
@@ -36,6 +38,7 @@ CREATE INDEX IF NOT EXISTS idx_media_item_library_added
 
 SCHEMA_MIGRATIONS = [
     "ALTER TABLE media_item ADD COLUMN file_paths_json TEXT NOT NULL DEFAULT '[]'",
+    "ALTER TABLE media_item ADD COLUMN file_versions_json TEXT NOT NULL DEFAULT '[]'",
 ]
 
 
@@ -147,9 +150,9 @@ def upsert_media_items(conn: sqlite3.Connection, items: Iterable[dict]) -> None:
             INSERT INTO media_item (
                 plex_rating_key, library, media_type, title, year, added_at, play_count,
                 last_played, watched_by_json, requested_by, request_date, manager_kind,
-                manager_id, available, file_size_bytes, file_paths_json
+                manager_id, available, file_size_bytes, file_paths_json, file_versions_json
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(plex_rating_key) DO UPDATE SET
                 library=excluded.library,
                 media_type=excluded.media_type,
@@ -165,7 +168,8 @@ def upsert_media_items(conn: sqlite3.Connection, items: Iterable[dict]) -> None:
                 manager_id=excluded.manager_id,
                 available=excluded.available,
                 file_size_bytes=excluded.file_size_bytes,
-                file_paths_json=excluded.file_paths_json
+                file_paths_json=excluded.file_paths_json,
+                file_versions_json=excluded.file_versions_json
             """,
             (
                 item["plex_rating_key"],
@@ -183,7 +187,8 @@ def upsert_media_items(conn: sqlite3.Connection, items: Iterable[dict]) -> None:
                 item.get("manager_id"),
                 1 if item.get("available", True) else 0,
                 item.get("file_size_bytes", 0),
-                json.dumps(item.get("file_paths", [])),
+                json.dumps([v.get("path", "") for v in item.get("file_versions", [])]),
+                json.dumps(item.get("file_versions", [])),
             ),
         )
     conn.commit()
@@ -218,25 +223,42 @@ def list_duplicates(
     protected_prefixes: tuple[str, ...],
     library: str | None = None,
 ) -> list[DuplicateItem]:
-    sql = "SELECT * FROM media_item WHERE file_paths_json != '[]' AND file_paths_json IS NOT NULL"
+    if not local_prefixes or not protected_prefixes:
+        return []  # duplicate detection disabled until paths configured
+
+    sql = "SELECT * FROM media_item WHERE file_versions_json != '[]' AND file_versions_json IS NOT NULL"
     params: tuple[str, ...] = ()
     if library:
         sql += " AND library = ?"
         params = (library,)
     sql += " ORDER BY title ASC"
     rows = conn.execute(sql, params).fetchall()
+
     results: list[DuplicateItem] = []
     for row in rows:
-        paths: list[str] = json.loads(row["file_paths_json"] or "[]")
-        local = [p for p in paths if any(p.startswith(prefix) for prefix in local_prefixes)]
-        nas = [p for p in paths if any(p.startswith(prefix) for prefix in protected_prefixes)]
-        if local and nas:
-            item = _row_to_media_item(row)
-            results.append(DuplicateItem(
-                **item.model_dump(),
-                local_paths=local,
-                nas_paths=nas,
-            ))
+        file_versions: list[dict] = json.loads(row["file_versions_json"] or "[]")
+        versions = build_versions(file_versions, row["media_type"], local_prefixes, protected_prefixes)
+        deletable = find_deletable(versions, row["media_type"])
+        if not deletable:
+            continue
+        item = _row_to_media_item(row)
+        results.append(DuplicateItem(
+            **item.model_dump(),
+            local_paths=[d.local_path for d in deletable],
+            nas_paths=sorted({d.protected_path for d in deletable}),
+            duplicate_versions=[
+                DuplicateVersion(
+                    identity=d.identity,
+                    local_path=d.local_path,
+                    local_size_bytes=d.local_size,
+                    local_quality=d.local_quality,
+                    nas_path=d.protected_path,
+                    nas_quality=d.protected_quality,
+                )
+                for d in deletable
+            ],
+            reclaimable_bytes=sum(d.local_size for d in deletable),
+        ))
     return results
 
 

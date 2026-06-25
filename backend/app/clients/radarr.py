@@ -15,6 +15,19 @@ class RadarrClient(HttpApiClient):
         response = await self.request("GET", "/api/v3/movie")
         return response.json()
 
+    async def list_movie_files(self, movie_id: int) -> list[dict[str, Any]]:
+        # Per-file detail (id, path, quality, size) for a movie.
+        # https://radarr.video/docs/api/#/MovieFile/get_api_v3_moviefile
+        response = await self.request("GET", "/api/v3/moviefile", params={"movieId": str(movie_id)})
+        return response.json()
+
+    async def delete_movie_file(self, movie_file_id: int, *, confirm: bool = False) -> None:
+        if not confirm:
+            raise RuntimeError("Radarr delete_movie_file requires an explicit confirm=True call after dry-run.")
+        # Deletes a single movie file from disk, leaving the movie entry intact.
+        # https://radarr.video/docs/api/#/MovieFile/delete_api_v3_moviefile__id_
+        await self.request("DELETE", f"/api/v3/moviefile/{movie_file_id}")
+
     async def delete_movie(
         self,
         movie_id: int,

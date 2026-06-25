@@ -30,7 +30,7 @@ class PlexMediaSummary:
     imdb_id: str | None = None
     play_count: int = 0
     last_played: datetime | None = None
-    file_paths: tuple[str, ...] = ()
+    file_versions: tuple[dict, ...] = ()
 
 
 class PlexClient(HttpApiClient):
@@ -63,9 +63,10 @@ class PlexClient(HttpApiClient):
         root = ElementTree.fromstring(response.text)
         return [self._parse_media_node(node) for node in root if node.tag in {"Video", "Directory"}]
 
-    async def list_episode_paths_by_show(self, section_key: str) -> dict[str, list[str]]:
-        # Fetch all episodes (type=4) for a TV section and aggregate file paths by show.
-        # grandparentRatingKey on each episode is the show's rating key.
+    async def list_episode_versions_by_show(self, section_key: str) -> dict[str, list[dict]]:
+        # Fetch all episodes (type=4) for a TV section and aggregate file
+        # {path, size} entries by show. grandparentRatingKey on each episode is
+        # the show's rating key.
         # https://developer.plex.tv/docs/api-reference/library/get-library-items
         response = await self.request(
             "GET",
@@ -73,7 +74,7 @@ class PlexClient(HttpApiClient):
             params={"X-Plex-Token": self.token, "type": "4"},
         )
         root = ElementTree.fromstring(response.text)
-        paths_by_show: dict[str, list[str]] = {}
+        versions_by_show: dict[str, list[dict]] = {}
         for node in root:
             if node.tag != "Video":
                 continue
@@ -83,8 +84,10 @@ class PlexClient(HttpApiClient):
             for part in node.findall(".//Part"):
                 file_path = part.attrib.get("file", "")
                 if file_path:
-                    paths_by_show.setdefault(show_key, []).append(file_path)
-        return paths_by_show
+                    versions_by_show.setdefault(show_key, []).append(
+                        {"path": file_path, "size": _int_or_zero(part.attrib.get("size"))}
+                    )
+        return versions_by_show
 
     async def refresh_library_section(self, section_key: str) -> None:
         # Official docs fetched 2026-06-22:
@@ -113,7 +116,7 @@ class PlexClient(HttpApiClient):
             imdb_id=external_ids.get("imdb"),
             play_count=_int_or_zero(node.attrib.get("viewCount") or node.attrib.get("viewedLeafCount")),
             last_played=_timestamp_to_datetime(node.attrib.get("lastViewedAt")),
-            file_paths=_media_file_paths(node),
+            file_versions=_media_file_versions(node),
         )
 
 
@@ -139,9 +142,13 @@ def _external_ids_from_guids(guids: tuple[str, ...]) -> dict[str, Any]:
     return ids
 
 
-def _media_file_paths(node: ElementTree.Element) -> tuple[str, ...]:
-    paths = [part.attrib["file"] for part in node.findall(".//Part") if part.attrib.get("file")]
-    return tuple(dict.fromkeys(paths))
+def _media_file_versions(node: ElementTree.Element) -> tuple[dict, ...]:
+    versions: dict[str, dict] = {}
+    for part in node.findall(".//Part"):
+        file_path = part.attrib.get("file")
+        if file_path and file_path not in versions:
+            versions[file_path] = {"path": file_path, "size": _int_or_zero(part.attrib.get("size"))}
+    return tuple(versions.values())
 
 
 def _media_size(node: ElementTree.Element) -> int:

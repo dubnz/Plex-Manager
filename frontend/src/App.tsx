@@ -719,7 +719,7 @@ function DuplicatesView() {
   }
 
   const selectedItems = items.filter((item) => selectedIds.has(item.id));
-  const reclaimableSelected = selectedItems.reduce((sum, item) => sum + item.file_size_bytes, 0);
+  const reclaimableSelected = selectedItems.reduce((sum, item) => sum + item.reclaimable_bytes, 0);
 
   return (
     <main className="workspace">
@@ -785,8 +785,9 @@ function DuplicatesView() {
                   </th>
                   <th>Title</th>
                   <th>Type</th>
-                  <th>Local file(s)</th>
-                  <th>NAS file(s)</th>
+                  <th>Dupe files</th>
+                  <th>Local quality</th>
+                  <th>NAS quality</th>
                   <th>Size to reclaim</th>
                   <th>Manager</th>
                 </tr>
@@ -817,6 +818,13 @@ function DuplicatesView() {
   );
 }
 
+function uniqueQualities(values: string[]): string {
+  const seen = [...new Set(values)];
+  if (seen.length === 0) return "—";
+  if (seen.length === 1) return seen[0];
+  return `${seen.length} qualities`;
+}
+
 function DuplicateRow({
   item,
   selected,
@@ -827,12 +835,12 @@ function DuplicateRow({
   onToggle: (id: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const localDisplay = item.local_paths.length === 1
-    ? truncatePath(item.local_paths[0])
-    : `${item.local_paths.length} local files`;
-  const nasDisplay = item.nas_paths.length === 1
-    ? truncatePath(item.nas_paths[0])
-    : `${item.nas_paths.length} NAS files`;
+  const versions = item.duplicate_versions;
+  const localQuality = uniqueQualities(versions.map((v) => v.local_quality));
+  const nasQuality = uniqueQualities(versions.map((v) => v.nas_quality));
+  const fileLabel = item.media_type === "movie"
+    ? "1 movie"
+    : `${versions.length} episode${versions.length === 1 ? "" : "s"}`;
 
   return (
     <>
@@ -844,35 +852,50 @@ function DuplicateRow({
           <button
             className="text-button"
             onClick={() => setExpanded((v) => !v)}
-            title="Show file paths"
+            title="Show per-file detail"
           >
             <strong>{item.title}</strong>
           </button>
           <span>{item.year ?? "Unknown"}</span>
         </td>
         <td>{item.media_type === "movie" ? "Movie" : "TV Show"}</td>
-        <td>
-          <span className="path-cell local-path" title={item.local_paths.join("\n")}>{localDisplay}</span>
-        </td>
-        <td>
-          <span className="path-cell nas-path" title={item.nas_paths.join("\n")}>{nasDisplay}</span>
-        </td>
-        <td>{formatBytes(item.file_size_bytes)}</td>
+        <td>{fileLabel}</td>
+        <td><span className="qual-badge local-path">{localQuality}</span></td>
+        <td><span className="qual-badge nas-path">{nasQuality}</span></td>
+        <td>{formatBytes(item.reclaimable_bytes)}</td>
         <td>{item.manager_kind}</td>
       </tr>
       {expanded ? (
         <tr className="path-detail-row">
           <td />
-          <td colSpan={6}>
-            <div className="path-detail">
-              <div>
-                <strong>Local (to remove):</strong>
-                <ul>{item.local_paths.map((p) => <li key={p}>{p}</li>)}</ul>
-              </div>
-              <div>
-                <strong>NAS (kept):</strong>
-                <ul>{item.nas_paths.map((p) => <li key={p}>{p}</li>)}</ul>
-              </div>
+          <td colSpan={7}>
+            <div className="dupe-detail">
+              <table className="dupe-episodes">
+                <thead>
+                  <tr>
+                    <th>Episode/File</th>
+                    <th>Local quality (delete)</th>
+                    <th>NAS quality (keep)</th>
+                    <th>Reclaim</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {versions.map((v) => (
+                    <tr key={v.identity + v.local_path}>
+                      <td>{v.identity}</td>
+                      <td>
+                        <span className="qual-badge local-path">{v.local_quality}</span>
+                        <span className="path-hint" title={v.local_path}>{truncatePath(v.local_path, 70)}</span>
+                      </td>
+                      <td>
+                        <span className="qual-badge nas-path">{v.nas_quality}</span>
+                        <span className="path-hint" title={v.nas_path}>{truncatePath(v.nas_path, 70)}</span>
+                      </td>
+                      <td>{formatBytes(v.local_size_bytes)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </td>
         </tr>
@@ -917,13 +940,15 @@ function DuplicatesDryRunDrawer({
           {plan.items.map((item) => (
             <div className="plan-item" key={item.media_item_id}>
               <strong>{item.title}</strong>
-              <span>{item.library} · {item.manager_kind} · {formatBytes(item.reclaimable_bytes)} local</span>
+              <span>
+                {item.library} · {item.manager_kind} · {item.episode_count} file(s) · {formatBytes(item.reclaimable_bytes)}
+              </span>
               {item.warnings.map((w) => (
                 <p className="warning" key={w}>{w}</p>
               ))}
               <ol>
-                {item.steps.map((step) => (
-                  <li key={`${item.media_item_id}-${step.service}-${step.action}`}>
+                {item.steps.map((step, idx) => (
+                  <li key={`${item.media_item_id}-${idx}-${step.action}`}>
                     <b>{step.service}</b>
                     <small style={{ whiteSpace: "pre-wrap" }}>{step.detail}</small>
                   </li>

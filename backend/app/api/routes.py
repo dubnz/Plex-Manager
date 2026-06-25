@@ -149,7 +149,7 @@ def duplicates_list(
 
 
 @router.post("/duplicates/dry-run", response_model=DuplicatesDryRunPlan)
-def duplicates_dry_run(
+async def duplicates_dry_run(
     request: DuplicatesDryRunRequest,
     settings: Settings = Depends(get_settings),
     conn: sqlite3.Connection = Depends(get_connection),
@@ -164,4 +164,4 @@ def duplicates_dry_run(
     if missing:
         raise HTTPException(status_code=404, detail=f"Unknown or non-duplicate item ids: {missing}")
     selected = [dupes_by_id[item_id] for item_id in request.media_item_ids]
-    return build_duplicates_dry_run_plan(selected)
+    return await build_duplicates_dry_run_plan(settings, selected)
