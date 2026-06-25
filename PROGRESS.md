@@ -132,7 +132,7 @@ Next step:
 
 Task: Improve column enrichment and legacy request history matching.
 
-Status: Implemented locally; deployment pending.
+Status: Deployed to CT 100 and synced.
 
 Completed:
 
@@ -145,3 +145,12 @@ Completed:
 Verification:
 
 - `.venv/bin/python -m pytest backend/tests`: 16 passed.
+- `npm --prefix frontend run test -- --run`: 5 passed.
+- `npm --prefix frontend run build`: passed.
+- `bash -n scripts/install-lxc.sh`: passed.
+- `bash -n scripts/proxmox-create-lxc.sh`: passed.
+- CT 100 deployed commit `cf28859` and `plex-manager.service` restarted successfully.
+- `POST /api/config/validate`: returns OK for Plex, Tautulli, Sonarr, Radarr, Seerr, and Legacy Overseerr.
+- `POST /api/sync/run`: synced 856 Plex items from selected libraries with no warnings.
+- Post-sync Movies: 733/733 have size, 733/733 have manager/status links, 726/733 have requester data, 214/733 have play counts, 216/733 have last-played data, and 190/733 have watched-by data.
+- Post-sync TV: 118/123 have size, 118/123 have manager/status links, 108/123 have requester data, 63/123 have play counts, 60/123 have last-played data, and 57/123 have watched-by data.
