@@ -17,6 +17,9 @@ from dataclasses import dataclass
 # S01E02, s1e2, S01E02E03 (multi-episode) — capture season + all episode numbers.
 _EPISODE_RE = re.compile(r"[Ss](\d{1,2})(?:[Ee]\d{1,4})+")
 _EPISODE_NUMS_RE = re.compile(r"[Ee](\d{1,4})")
+# Alternate numbering, e.g. "Show - 1x01 - Title" / "12x05". The \b guards avoid
+# matching resolutions like 1920x1080.
+_NXNN_RE = re.compile(r"\b(\d{1,2})x(\d{1,3})\b")
 _RESOLUTION_RE = re.compile(r"(2160|1080|720|576|480)[pi]", re.IGNORECASE)
 _SOURCE_TOKENS = (
     ("remux", "Remux"),
@@ -103,13 +106,19 @@ def parse_quality(filename: str) -> str:
 
 
 def parse_episode(filename: str) -> tuple[int | None, tuple[int, ...]]:
-    """Return (season, (episode_numbers,)). Handles SxxExx and SxxExxExx."""
+    """Return (season, (episode_numbers,)).
+
+    Handles SxxExx, multi-episode SxxExxExx, and alternate NxNN (e.g. 1x01).
+    """
     match = _EPISODE_RE.search(filename)
-    if not match:
-        return None, ()
-    season = int(match.group(1))
-    episodes = tuple(int(num) for num in _EPISODE_NUMS_RE.findall(match.group(0)))
-    return season, episodes
+    if match:
+        season = int(match.group(1))
+        episodes = tuple(int(num) for num in _EPISODE_NUMS_RE.findall(match.group(0)))
+        return season, episodes
+    alt = _NXNN_RE.search(filename)
+    if alt:
+        return int(alt.group(1)), (int(alt.group(2)),)
+    return None, ()
 
 
 def build_versions(

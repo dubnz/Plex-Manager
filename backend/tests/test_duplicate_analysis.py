@@ -64,6 +64,31 @@ def test_parse_episode_none():
     assert parse_episode("Some Movie (2019).mkv") == (None, ())
 
 
+def test_parse_episode_nxnn_format():
+    assert parse_episode("The Simpsons - 1x01 - Roasting on an Open Fire.mkv") == (1, (1,))
+    assert parse_episode("Show - 12x05 - Title.mkv") == (12, (5,))
+
+
+def test_parse_episode_resolution_not_mistaken_for_episode():
+    # 1920x1080 in a name must NOT parse as season 19 / episode 20 etc.
+    assert parse_episode("Movie 1920x1080 BluRay.mkv") == (None, ())
+
+
+def test_cross_format_matching_sxxexx_vs_nxnn():
+    # Local uses 1x01, NAS uses S01E01 — same episode, must match.
+    local = "/mnt/local/tv/Show/Season 01/Show - 1x01 - Title [WEBDL-1080p].mkv"
+    nas = "/mnt/remote-tv/Show/Season 01/Show - S01E01 - Title HDTV-720p.mkv"
+    versions = build_versions(
+        [{"path": local, "size": 100}, {"path": nas, "size": 50}],
+        "show",
+        LOCAL,
+        PROTECTED,
+    )
+    deletable = find_deletable(versions, "show")
+    assert len(deletable) == 1
+    assert deletable[0].local_path == local
+
+
 # --- SAFETY: protected files are never deletable ---
 
 def test_protected_file_never_deletable():
