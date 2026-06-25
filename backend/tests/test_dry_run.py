@@ -26,5 +26,5 @@ def test_delete_dry_run_never_mutates_and_estimates_storage() -> None:
     assert plan.storage_reclaim_estimate_bytes == 2048
     assert plan.items[0].steps[0].service == "Radarr"
     assert all(step.dry_run for step in plan.items[0].steps)
-    assert "Dry-run only" in plan.global_warnings[0]
+    assert "Preview only" in plan.global_warnings[0]
 

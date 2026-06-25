@@ -1,5 +1,4 @@
 import {
-  Archive,
   ArrowDown,
   ArrowUp,
   CheckCircle2,
@@ -11,15 +10,13 @@ import {
   Save,
   Search,
   Settings,
-  ShieldCheck,
   SlidersHorizontal,
-  Tags,
   Trash2,
   X
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { createDeleteDryRun, createDuplicatesDryRun, executeDelete, getConfig, getDuplicates, getMedia, getStatus, runSync, saveConfig, validateConfig } from "./api";
+import { createDeleteDryRun, createDuplicatesDryRun, executeDelete, executeDuplicates, getConfig, getDuplicates, getMedia, getStatus, runSync, saveConfig, validateConfig } from "./api";
 import { buildMockDryRun, mockMedia, mockStatus } from "./lib/mockData";
 import { filterMedia, toCsv } from "./lib/filters";
 import { formatBytes, formatDate } from "./lib/format";
@@ -30,6 +27,7 @@ import type {
   DuplicateItem,
   DuplicatesListResponse,
   DuplicatesDryRunPlan,
+  DuplicatesExecuteResponse,
   FilterState,
   MediaItem,
   ServiceConfigResponse,
@@ -356,7 +354,7 @@ export function App() {
             <div className="action-group">
               <button className="danger" disabled={!selectedIds.size} onClick={runDryDelete}>
                 <Trash2 size={16} />
-                Dry-run delete
+                Delete selected{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
               </button>
               {dryRunPlan && !previewOpen ? (
                 <button onClick={() => setPreviewOpen(true)}>
@@ -364,14 +362,6 @@ export function App() {
                   View delete preview
                 </button>
               ) : null}
-              <button disabled={!selectedIds.size}>
-                <Tags size={16} />
-                Mark unavailable
-              </button>
-              <button disabled={!selectedIds.size}>
-                <Archive size={16} />
-                Archive/tag
-              </button>
               <button onClick={exportSelection}>
                 <Download size={16} />
                 Export CSV
@@ -575,20 +565,19 @@ function DeletePreviewDrawer({
   onClose: () => void;
   onExecute: (confirmation: string) => Promise<void>;
 }) {
-  const [confirmation, setConfirmation] = useState("");
+  const [confirming, setConfirming] = useState(false);
 
   if (!open || !plan) return null;
-  const canExecute = confirmation === "DELETE" && !busy;
 
   return (
     <>
       <button className="drawer-backdrop" aria-label="Close delete preview" onClick={onClose} />
       <aside className="preview-drawer" aria-label="Delete preview">
         <div className="preview-heading">
-          <ShieldCheck size={19} />
+          <Trash2 size={19} />
           <div>
             <h2>Delete preview</h2>
-            <p>No destructive action will run until confirmed.</p>
+            <p>Deletes the entire item from Sonarr/Radarr and disk.</p>
           </div>
           <button className="drawer-close" title="Close delete preview" aria-label="Close delete preview" onClick={onClose}>
             <X size={17} />
@@ -619,34 +608,34 @@ function DeletePreviewDrawer({
           ))}
         </div>
 
-        <section className="execute-panel" aria-label="Real delete confirmation">
-          <h3>Execute deletion</h3>
-          <p>
-            This calls Radarr/Sonarr with delete files enabled for the selected items. Type <strong>DELETE</strong> to unlock it.
-          </p>
-          <label className="field">
-            <span>Confirmation</span>
-            <input
-              value={confirmation}
-              onChange={(event) => setConfirmation(event.target.value)}
-              placeholder="Type DELETE"
-              autoComplete="off"
-            />
-          </label>
-          <button className="danger execute-button" disabled={!canExecute} onClick={() => onExecute(confirmation)}>
-            <Trash2 size={16} />
-            Execute confirmed delete
-          </button>
-          {message ? <p className="execute-message">{message}</p> : null}
+        <section className="execute-panel" aria-label="Delete confirmation">
           {result ? (
             <div className="execute-result">
               <strong>{result.deleted_count} item(s) processed</strong>
-              <span>{formatBytes(result.storage_reclaim_estimate_bytes)} requested reclaim</span>
+              <span>{formatBytes(result.storage_reclaim_estimate_bytes)} reclaimed</span>
               {result.global_warnings.map((warning) => (
                 <p className="warning" key={warning}>{warning}</p>
               ))}
+              {message ? <p className="execute-message">{message}</p> : null}
+              <button onClick={onClose}>Close</button>
             </div>
-          ) : null}
+          ) : !confirming ? (
+            <button className="danger execute-button" disabled={busy} onClick={() => setConfirming(true)}>
+              <Trash2 size={16} />
+              Delete {plan.items.length} item(s) now
+            </button>
+          ) : (
+            <div className="confirm-row">
+              <p>Permanently delete {plan.items.length} item(s) and their files from Sonarr/Radarr?</p>
+              <div className="action-group">
+                <button className="danger execute-button" disabled={busy} onClick={() => onExecute("DELETE")}>
+                  {busy ? "Deleting…" : "Yes, delete now"}
+                </button>
+                <button disabled={busy} onClick={() => setConfirming(false)}>Cancel</button>
+              </div>
+              {message ? <p className="execute-message">{message}</p> : null}
+            </div>
+          )}
         </section>
       </aside>
     </>
@@ -659,25 +648,29 @@ function DuplicatesView() {
   const [plan, setPlan] = useState<DuplicatesDryRunPlan | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [message, setMessage] = useState("Loading duplicates...");
+  const [executeResult, setExecuteResult] = useState<DuplicatesExecuteResponse | null>(null);
+  const [executeBusy, setExecuteBusy] = useState(false);
+  const [executeMessage, setExecuteMessage] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "movie" | "show">("all");
   const [searchFilter, setSearchFilter] = useState("");
   // Default to the quality-safe set so a 4K local is never accidentally deleted
   // for a lower-res NAS copy. "safe" = same resolution or NAS is higher.
   const [qualityFilter, setQualityFilter] = useState<"safe" | "downgrade" | "unknown" | "all">("safe");
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const result = await getDuplicates();
-        setData(result);
-        setMessage(result.total === 0
-          ? "No duplicates found. Run a sync to update the cache."
-          : `${result.total} item(s) with a NAS copy · ${formatBytes(result.total_reclaimable_bytes)} total. Showing quality-safe items by default.`
-        );
-      } catch {
-        setMessage("Failed to load duplicates. Check that the backend is reachable and a sync has run.");
-      }
+  async function load() {
+    try {
+      const result = await getDuplicates();
+      setData(result);
+      setMessage(result.total === 0
+        ? "No duplicates found. Run a sync to update the cache."
+        : `${result.total} item(s) with a NAS copy · ${formatBytes(result.total_reclaimable_bytes)} total. Showing quality-safe items by default.`
+      );
+    } catch {
+      setMessage("Failed to load duplicates. Check that the backend is reachable and a sync has run.");
     }
+  }
+
+  useEffect(() => {
     load();
   }, []);
 
@@ -728,15 +721,35 @@ function DuplicatesView() {
     }
   }
 
-  async function runDryRun() {
+  async function openPreview() {
     if (selectedIds.size === 0) return;
     const ids = [...selectedIds];
+    setExecuteResult(null);
+    setExecuteMessage("");
     try {
       const result = await createDuplicatesDryRun(ids);
       setPlan(result);
       setPreviewOpen(true);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Dry-run failed.");
+      setMessage(error instanceof Error ? error.message : "Preview failed.");
+    }
+  }
+
+  async function runExecute() {
+    if (selectedIds.size === 0) return;
+    const ids = [...selectedIds];
+    setExecuteBusy(true);
+    setExecuteMessage("");
+    try {
+      const result = await executeDuplicates(ids);
+      setExecuteResult(result);
+      setExecuteMessage(`Deleted ${result.deleted_file_count} file(s); reclaimed ${formatBytes(result.reclaimed_bytes)}.`);
+      setSelectedIds(new Set());
+      await load(); // refresh list so deleted items drop out
+    } catch (error) {
+      setExecuteMessage(error instanceof Error ? error.message : "Delete failed.");
+    } finally {
+      setExecuteBusy(false);
     }
   }
 
@@ -789,14 +802,14 @@ function DuplicatesView() {
         </div>
 
         <div className="action-group">
-          <button className="danger" disabled={selectedIds.size === 0} onClick={runDryRun}>
+          <button className="danger" disabled={selectedIds.size === 0} onClick={openPreview}>
             <Trash2 size={16} />
-            Dry-run remove local copy
+            Remove local copy{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
           </button>
           {plan && !previewOpen ? (
             <button onClick={() => setPreviewOpen(true)}>
               <PanelRightOpen size={16} />
-              View dry-run preview
+              View delete preview
             </button>
           ) : null}
         </div>
@@ -860,6 +873,10 @@ function DuplicatesView() {
         <DuplicatesDryRunDrawer
           plan={plan}
           open={previewOpen}
+          busy={executeBusy}
+          result={executeResult}
+          message={executeMessage}
+          onExecute={runExecute}
           onClose={() => setPreviewOpen(false)}
         />
       ) : null}
@@ -969,22 +986,34 @@ function DuplicateRow({
 function DuplicatesDryRunDrawer({
   plan,
   open,
+  busy,
+  result,
+  message,
+  onExecute,
   onClose
 }: {
   plan: DuplicatesDryRunPlan;
   open: boolean;
+  busy: boolean;
+  result: DuplicatesExecuteResponse | null;
+  message: string;
+  onExecute: () => Promise<void>;
   onClose: () => void;
 }) {
+  const [confirming, setConfirming] = useState(false);
   if (!open) return null;
+  const totalFiles = plan.items.reduce((sum, item) => sum + item.episode_count, 0);
+  const done = result !== null;
+
   return (
     <>
-      <button className="drawer-backdrop" aria-label="Close dry-run preview" onClick={onClose} />
-      <aside className="preview-drawer" aria-label="Duplicates dry-run preview">
+      <button className="drawer-backdrop" aria-label="Close delete preview" onClick={onClose} />
+      <aside className="preview-drawer" aria-label="Duplicates delete preview">
         <div className="preview-heading">
-          <ShieldCheck size={19} />
+          <Trash2 size={19} />
           <div>
-            <h2>Duplicates dry-run preview</h2>
-            <p>No files will be deleted — this is a preview only.</p>
+            <h2>Remove local copies</h2>
+            <p>Deletes the local file via Sonarr/Radarr and unmonitors it. The NAS copy is kept.</p>
           </div>
           <button className="drawer-close" title="Close" aria-label="Close" onClick={onClose}>
             <X size={17} />
@@ -999,31 +1028,58 @@ function DuplicatesDryRunDrawer({
           {plan.global_warnings.map((warning) => (
             <p className="warning" key={warning}>{warning}</p>
           ))}
-          {plan.items.map((item) => (
-            <div className="plan-item" key={item.media_item_id}>
-              <strong>{item.title}</strong>
-              <span>
-                {item.library} · {item.manager_kind} · {item.episode_count} file(s) · {formatBytes(item.reclaimable_bytes)}
-              </span>
-              {item.warnings.map((w) => (
-                <p className="warning" key={w}>{w}</p>
-              ))}
-              <ol>
-                {item.steps.map((step, idx) => (
-                  <li key={`${item.media_item_id}-${idx}-${step.action}`}>
-                    <b>{step.service}</b>
-                    <small style={{ whiteSpace: "pre-wrap" }}>{step.detail}</small>
-                  </li>
+          {plan.items.map((item) => {
+            const outcome = result?.items.find((r) => r.media_item_id === item.media_item_id);
+            return (
+              <div className="plan-item" key={item.media_item_id}>
+                <strong>{item.title}</strong>
+                <span>
+                  {item.library} · {item.manager_kind} · {item.episode_count} file(s) · {formatBytes(item.reclaimable_bytes)}
+                </span>
+                {outcome ? (
+                  <p className="execute-ok">✓ Deleted {outcome.deleted_file_count} file(s); reclaimed {formatBytes(outcome.reclaimed_bytes)}.</p>
+                ) : null}
+                {(outcome?.warnings ?? item.warnings).map((w) => (
+                  <p className="warning" key={w}>{w}</p>
                 ))}
-              </ol>
-            </div>
-          ))}
+                <ol>
+                  {(outcome?.steps ?? item.steps).map((step, idx) => (
+                    <li key={`${item.media_item_id}-${idx}-${step.action}`}>
+                      <b>{step.service}</b>
+                      <small style={{ whiteSpace: "pre-wrap" }}>{step.detail}</small>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            );
+          })}
         </div>
 
-        <section className="execute-panel" aria-label="Execute note">
-          <p>
-            <strong>Execute not yet available.</strong> Review the steps above, then run a sync to verify the preview is still accurate before deletion is enabled.
-          </p>
+        <section className="execute-panel" aria-label="Delete confirmation">
+          {done ? (
+            <div className="execute-result">
+              <strong>{result.deleted_file_count} file(s) deleted</strong>
+              <span>{formatBytes(result.reclaimed_bytes)} reclaimed</span>
+              {message ? <p className="execute-message">{message}</p> : null}
+              <button onClick={onClose}>Close</button>
+            </div>
+          ) : !confirming ? (
+            <button className="danger execute-button" disabled={busy} onClick={() => setConfirming(true)}>
+              <Trash2 size={16} />
+              Delete {totalFiles} local file(s) now
+            </button>
+          ) : (
+            <div className="confirm-row">
+              <p>Permanently delete {totalFiles} local file(s)? The NAS copy stays.</p>
+              <div className="action-group">
+                <button className="danger execute-button" disabled={busy} onClick={onExecute}>
+                  {busy ? "Deleting…" : "Yes, delete now"}
+                </button>
+                <button disabled={busy} onClick={() => setConfirming(false)}>Cancel</button>
+              </div>
+              {message ? <p className="execute-message">{message}</p> : null}
+            </div>
+          )}
         </section>
       </aside>
     </>

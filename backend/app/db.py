@@ -278,6 +278,29 @@ def mark_media_unavailable(conn: sqlite3.Connection, ids: list[int]) -> None:
     conn.commit()
 
 
+def remove_file_versions(conn: sqlite3.Connection, media_item_id: int, paths: list[str]) -> None:
+    """Drop specific file paths from a cached item after their files are deleted.
+
+    Keeps the duplicates view accurate immediately, before the next full sync.
+    """
+    if not paths:
+        return
+    row = conn.execute(
+        "SELECT file_versions_json, file_paths_json FROM media_item WHERE id = ?",
+        (media_item_id,),
+    ).fetchone()
+    if row is None:
+        return
+    remove = set(paths)
+    versions = [v for v in json.loads(row["file_versions_json"] or "[]") if v.get("path") not in remove]
+    file_paths = [p for p in json.loads(row["file_paths_json"] or "[]") if p not in remove]
+    conn.execute(
+        "UPDATE media_item SET file_versions_json = ?, file_paths_json = ? WHERE id = ?",
+        (json.dumps(versions), json.dumps(file_paths), media_item_id),
+    )
+    conn.commit()
+
+
 def _parse_datetime(value: str | None) -> datetime | None:
     if not value:
         return None

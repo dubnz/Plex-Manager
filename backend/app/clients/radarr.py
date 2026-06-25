@@ -28,6 +28,17 @@ class RadarrClient(HttpApiClient):
         # https://radarr.video/docs/api/#/MovieFile/delete_api_v3_moviefile__id_
         await self.request("DELETE", f"/api/v3/moviefile/{movie_file_id}")
 
+    async def set_movies_monitored(self, movie_ids: list[int], monitored: bool) -> None:
+        if not movie_ids:
+            return
+        # Bulk editor: set monitored so Radarr will not re-grab deleted movies.
+        # https://radarr.video/docs/api/#/MovieEditor/put_api_v3_movie_editor
+        await self.request(
+            "PUT",
+            "/api/v3/movie/editor",
+            json={"movieIds": movie_ids, "monitored": monitored},
+        )
+
     async def delete_movie(
         self,
         movie_id: int,

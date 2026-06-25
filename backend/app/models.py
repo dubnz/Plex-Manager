@@ -88,6 +88,28 @@ class DuplicatesDryRunPlan(BaseModel):
     global_warnings: list[str] = Field(default_factory=list)
 
 
+class DuplicatesExecuteRequest(BaseModel):
+    media_item_ids: list[int] = Field(min_length=1)
+
+
+class DuplicatesExecuteItem(BaseModel):
+    media_item_id: int
+    title: str
+    library: str
+    manager_kind: str
+    deleted_file_count: int
+    reclaimed_bytes: int
+    steps: list[DuplicatesDryRunStep]
+    warnings: list[str] = Field(default_factory=list)
+
+
+class DuplicatesExecuteResponse(BaseModel):
+    items: list[DuplicatesExecuteItem]
+    deleted_file_count: int
+    reclaimed_bytes: int
+    global_warnings: list[str] = Field(default_factory=list)
+
+
 class MediaListResponse(BaseModel):
     items: list[MediaItem]
     total: int

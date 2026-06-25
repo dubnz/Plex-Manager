@@ -77,8 +77,7 @@ def build_delete_dry_run_plan(items: list[MediaItem], *, delete_files: bool) -> 
         items=plan_items,
         storage_reclaim_estimate_bytes=sum(item.file_size_bytes for item in items if delete_files),
         global_warnings=[
-            "Dry-run only: no destructive action has been performed.",
-            "Real delete remains blocked until authenticated reads and explicit confirmation are verified.",
+            "Preview only: confirm to permanently delete the entire item from Sonarr/Radarr and disk.",
         ],
     )
 

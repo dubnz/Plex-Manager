@@ -34,6 +34,17 @@ class SonarrClient(HttpApiClient):
         # https://sonarr.tv/docs/api/#/EpisodeFile/delete_api_v3_episodefile__id_
         await self.request("DELETE", f"/api/v3/episodefile/{episode_file_id}")
 
+    async def set_episodes_monitored(self, episode_ids: list[int], monitored: bool) -> None:
+        if not episode_ids:
+            return
+        # Bulk-set the monitored flag so Sonarr will not re-grab deleted episodes.
+        # https://sonarr.tv/docs/api/#/Episode/put_api_v3_episode_monitor
+        await self.request(
+            "PUT",
+            "/api/v3/episode/monitor",
+            json={"episodeIds": episode_ids, "monitored": monitored},
+        )
+
     async def delete_series(
         self,
         series_id: int,

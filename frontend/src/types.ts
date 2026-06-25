@@ -149,6 +149,24 @@ export interface DuplicatesDryRunPlan {
   global_warnings: string[];
 }
 
+export interface DuplicatesExecuteItem {
+  media_item_id: number;
+  title: string;
+  library: string;
+  manager_kind: string;
+  deleted_file_count: number;
+  reclaimed_bytes: number;
+  steps: DuplicatesDryRunStep[];
+  warnings: string[];
+}
+
+export interface DuplicatesExecuteResponse {
+  items: DuplicatesExecuteItem[];
+  deleted_file_count: number;
+  reclaimed_bytes: number;
+  global_warnings: string[];
+}
+
 export interface MediaListResponse {
   items: MediaItem[];
   total: number;

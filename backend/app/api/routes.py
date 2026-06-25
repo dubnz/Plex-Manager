@@ -15,6 +15,8 @@ from app.models import (
     DuplicatesListResponse,
     DuplicatesDryRunPlan,
     DuplicatesDryRunRequest,
+    DuplicatesExecuteRequest,
+    DuplicatesExecuteResponse,
     MediaListResponse,
     ServiceConfigResponse,
     ServiceConfigUpdate,
@@ -23,8 +25,8 @@ from app.models import (
 )
 from app.services.cleanup import build_delete_dry_run_plan, execute_delete_plan
 from app.services.configuration import public_config, save_config
-from app.services.duplicates import build_duplicates_dry_run_plan
-from app.services.status import build_integration_status
+from app.services.duplicates import build_duplicates_dry_run_plan, execute_duplicates_plan
+from app.services.status import build_integration_status, invalidate_status_cache
 from app.services.sync import run_sync
 from app.services.validation import validate_connections
 
@@ -41,10 +43,10 @@ def get_connection(request: Request) -> sqlite3.Connection:
 
 
 @router.get("/status", response_model=StatusResponse)
-def status(settings: Settings = Depends(get_settings)) -> StatusResponse:
+async def status(settings: Settings = Depends(get_settings)) -> StatusResponse:
     return StatusResponse(
         demo_mode=settings.demo_mode,
-        integrations=build_integration_status(settings),
+        integrations=await build_integration_status(settings),
         sync_interval_minutes=settings.sync_interval_minutes,
         selected_libraries=list(settings.plex_library_names),
     )
@@ -63,6 +65,7 @@ def update_config(
 ) -> ServiceConfigResponse:
     save_config(settings, update)
     request.app.state.settings = load_settings()
+    invalidate_status_cache()
     return public_config(request.app.state.settings)
 
 
@@ -139,7 +142,7 @@ def duplicates_list(
         protected_prefixes=settings.protected_media_paths,
         library=library,
     )
-    total_reclaimable = sum(item.file_size_bytes for item in items)
+    total_reclaimable = sum(item.reclaimable_bytes for item in items)
     return DuplicatesListResponse(
         items=items,
         total=len(items),
@@ -165,3 +168,22 @@ async def duplicates_dry_run(
         raise HTTPException(status_code=404, detail=f"Unknown or non-duplicate item ids: {missing}")
     selected = [dupes_by_id[item_id] for item_id in request.media_item_ids]
     return await build_duplicates_dry_run_plan(settings, selected)
+
+
+@router.post("/duplicates/execute", response_model=DuplicatesExecuteResponse)
+async def duplicates_execute(
+    request: DuplicatesExecuteRequest,
+    settings: Settings = Depends(get_settings),
+    conn: sqlite3.Connection = Depends(get_connection),
+) -> DuplicatesExecuteResponse:
+    all_dupes = db.list_duplicates(
+        conn,
+        local_prefixes=settings.local_media_paths,
+        protected_prefixes=settings.protected_media_paths,
+    )
+    dupes_by_id = {item.id: item for item in all_dupes}
+    missing = [item_id for item_id in request.media_item_ids if item_id not in dupes_by_id]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"Unknown or non-duplicate item ids: {missing}")
+    selected = [dupes_by_id[item_id] for item_id in request.media_item_ids]
+    return await execute_duplicates_plan(settings, conn, selected)
