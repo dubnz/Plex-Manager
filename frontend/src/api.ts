@@ -1,9 +1,9 @@
 import type {
   ConnectionValidationResponse,
   DeleteExecuteResponse,
-  DeleteDryRunPlan,
+  DeletePreviewPlan,
   DuplicatesListResponse,
-  DuplicatesDryRunPlan,
+  DuplicatesPreviewPlan,
   DuplicatesExecuteResponse,
   MediaListResponse,
   ServiceConfigResponse,
@@ -61,16 +61,16 @@ export async function runSync(): Promise<SyncRunResponse> {
   return response.json() as Promise<SyncRunResponse>;
 }
 
-export async function createDeleteDryRun(ids: number[], deleteFiles = true): Promise<DeleteDryRunPlan> {
-  const response = await fetch("/api/actions/delete/dry-run", {
+export async function createDeletePreview(ids: number[], deleteFiles = true): Promise<DeletePreviewPlan> {
+  const response = await fetch("/api/actions/delete/preview", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ media_item_ids: ids, delete_files: deleteFiles })
   });
   if (!response.ok) {
-    throw new Error(`Dry-run failed with ${response.status}`);
+    throw new Error(`Preview failed with ${response.status}`);
   }
-  return response.json() as Promise<DeleteDryRunPlan>;
+  return response.json() as Promise<DeletePreviewPlan>;
 }
 
 export async function executeDelete(
@@ -95,8 +95,8 @@ export async function getDuplicates(library?: string): Promise<DuplicatesListRes
   return getJson<DuplicatesListResponse>(`/api/duplicates${qs}`);
 }
 
-export async function createDuplicatesDryRun(ids: number[]): Promise<DuplicatesDryRunPlan> {
-  const response = await fetch("/api/duplicates/dry-run", {
+export async function createDuplicatesPreview(ids: number[]): Promise<DuplicatesPreviewPlan> {
+  const response = await fetch("/api/duplicates/preview", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ media_item_ids: ids })
@@ -104,7 +104,7 @@ export async function createDuplicatesDryRun(ids: number[]): Promise<DuplicatesD
   if (!response.ok) {
     throw new Error(`Duplicates preview failed with ${response.status}`);
   }
-  return response.json() as Promise<DuplicatesDryRunPlan>;
+  return response.json() as Promise<DuplicatesPreviewPlan>;
 }
 
 export async function executeDuplicates(ids: number[]): Promise<DuplicatesExecuteResponse> {

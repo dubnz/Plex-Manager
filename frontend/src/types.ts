@@ -125,26 +125,26 @@ export interface DuplicatesListResponse {
   demo_mode: boolean;
 }
 
-export interface DuplicatesDryRunStep {
+export interface DuplicatesPreviewStep {
   service: string;
   action: string;
-  dry_run: boolean;
+  simulated: boolean;
   detail: string;
 }
 
-export interface DuplicatesDryRunItem {
+export interface DuplicatesPreviewItem {
   media_item_id: number;
   title: string;
   library: string;
   manager_kind: string;
   episode_count: number;
   reclaimable_bytes: number;
-  steps: DuplicatesDryRunStep[];
+  steps: DuplicatesPreviewStep[];
   warnings: string[];
 }
 
-export interface DuplicatesDryRunPlan {
-  items: DuplicatesDryRunItem[];
+export interface DuplicatesPreviewPlan {
+  items: DuplicatesPreviewItem[];
   total_reclaimable_bytes: number;
   global_warnings: string[];
 }
@@ -156,7 +156,7 @@ export interface DuplicatesExecuteItem {
   manager_kind: string;
   deleted_file_count: number;
   reclaimed_bytes: number;
-  steps: DuplicatesDryRunStep[];
+  steps: DuplicatesPreviewStep[];
   warnings: string[];
 }
 
@@ -173,32 +173,32 @@ export interface MediaListResponse {
   demo_mode: boolean;
 }
 
-export interface DeleteDryRunStep {
+export interface DeletePreviewStep {
   service: string;
   action: string;
-  dry_run: boolean;
+  simulated: boolean;
   detail: string;
 }
 
-export interface DeleteDryRunItem {
+export interface DeletePreviewItem {
   media_item_id: number;
   title: string;
   library: string;
   manager_kind: string;
   file_size_bytes: number;
-  steps: DeleteDryRunStep[];
+  steps: DeletePreviewStep[];
   warnings: string[];
 }
 
-export interface DeleteDryRunPlan {
-  items: DeleteDryRunItem[];
+export interface DeletePreviewPlan {
+  items: DeletePreviewItem[];
   storage_reclaim_estimate_bytes: number;
   requires_confirmation: boolean;
   global_warnings: string[];
 }
 
 export interface DeleteExecuteResponse {
-  items: DeleteDryRunItem[];
+  items: DeletePreviewItem[];
   deleted_count: number;
   storage_reclaim_estimate_bytes: number;
   global_warnings: string[];

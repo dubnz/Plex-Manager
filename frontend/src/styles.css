@@ -437,7 +437,7 @@ td span {
   width: 34px;
 }
 
-.dry-run {
+.preview-body {
   display: grid;
   gap: 0.8rem;
   margin-top: 1rem;

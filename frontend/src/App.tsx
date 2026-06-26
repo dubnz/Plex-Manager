@@ -16,17 +16,17 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { createDeleteDryRun, createDuplicatesDryRun, executeDelete, executeDuplicates, getConfig, getDuplicates, getMedia, getStatus, runSync, saveConfig, validateConfig } from "./api";
-import { buildMockDryRun, mockMedia, mockStatus } from "./lib/mockData";
+import { createDeletePreview, createDuplicatesPreview, executeDelete, executeDuplicates, getConfig, getDuplicates, getMedia, getStatus, runSync, saveConfig, validateConfig } from "./api";
+import { buildMockPreview, mockMedia, mockStatus } from "./lib/mockData";
 import { filterMedia, toCsv } from "./lib/filters";
 import { formatBytes, formatDate } from "./lib/format";
 import type {
   ConnectionValidationResponse,
   DeleteExecuteResponse,
-  DeleteDryRunPlan,
+  DeletePreviewPlan,
   DuplicateItem,
   DuplicatesListResponse,
-  DuplicatesDryRunPlan,
+  DuplicatesPreviewPlan,
   DuplicatesExecuteResponse,
   FilterState,
   MediaItem,
@@ -92,7 +92,7 @@ export function App() {
   const [status, setStatus] = useState<StatusResponse>(mockStatus);
   const [items, setItems] = useState<MediaItem[]>(mockMedia);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [dryRunPlan, setDryRunPlan] = useState<DeleteDryRunPlan | null>(null);
+  const [previewPlan, setPreviewPlan] = useState<DeletePreviewPlan | null>(null);
   const [deleteResult, setDeleteResult] = useState<DeleteExecuteResponse | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState("");
@@ -121,7 +121,7 @@ export function App() {
   useEffect(() => {
     loadMedia(activeLibrary);
     setSelectedIds(new Set());
-    setDryRunPlan(null);
+    setPreviewPlan(null);
     setDeleteResult(null);
     setDeleteMessage("");
     setPreviewOpen(false);
@@ -143,9 +143,9 @@ export function App() {
     setDeleteResult(null);
     setDeleteMessage("");
     try {
-      setDryRunPlan(await createDeleteDryRun(ids));
+      setPreviewPlan(await createDeletePreview(ids));
     } catch {
-      setDryRunPlan(buildMockDryRun(visibleItems.filter((item) => selectedIds.has(item.id))));
+      setPreviewPlan(buildMockPreview(visibleItems.filter((item) => selectedIds.has(item.id))));
     }
     setPreviewOpen(true);
   }
@@ -356,7 +356,7 @@ export function App() {
                 <Trash2 size={16} />
                 Delete selected{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
               </button>
-              {dryRunPlan && !previewOpen ? (
+              {previewPlan && !previewOpen ? (
                 <button onClick={() => setPreviewOpen(true)}>
                   <PanelRightOpen size={16} />
                   View delete preview
@@ -510,7 +510,7 @@ export function App() {
             </section>
           </div>
           <DeletePreviewDrawer
-            plan={dryRunPlan}
+            plan={previewPlan}
             result={deleteResult}
             message={deleteMessage}
             busy={deleteBusy}
@@ -557,7 +557,7 @@ function DeletePreviewDrawer({
   onClose,
   onExecute
 }: {
-  plan: DeleteDryRunPlan | null;
+  plan: DeletePreviewPlan | null;
   result: DeleteExecuteResponse | null;
   message: string;
   busy: boolean;
@@ -584,7 +584,7 @@ function DeletePreviewDrawer({
           </button>
         </div>
 
-        <div className="dry-run">
+        <div className="preview-body">
           <div className="estimate">
             <span>Storage reclaim estimate</span>
             <strong>{formatBytes(plan.storage_reclaim_estimate_bytes)}</strong>
@@ -645,7 +645,7 @@ function DeletePreviewDrawer({
 function DuplicatesView() {
   const [data, setData] = useState<DuplicatesListResponse | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [plan, setPlan] = useState<DuplicatesDryRunPlan | null>(null);
+  const [plan, setPlan] = useState<DuplicatesPreviewPlan | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [message, setMessage] = useState("Loading duplicates...");
   const [executeResult, setExecuteResult] = useState<DuplicatesExecuteResponse | null>(null);
@@ -727,7 +727,7 @@ function DuplicatesView() {
     setExecuteResult(null);
     setExecuteMessage("");
     try {
-      const result = await createDuplicatesDryRun(ids);
+      const result = await createDuplicatesPreview(ids);
       setPlan(result);
       setPreviewOpen(true);
     } catch (error) {
@@ -870,7 +870,7 @@ function DuplicatesView() {
       ) : null}
 
       {previewOpen && plan ? (
-        <DuplicatesDryRunDrawer
+        <DuplicatesPreviewDrawer
           plan={plan}
           open={previewOpen}
           busy={executeBusy}
@@ -983,7 +983,7 @@ function DuplicateRow({
   );
 }
 
-function DuplicatesDryRunDrawer({
+function DuplicatesPreviewDrawer({
   plan,
   open,
   busy,
@@ -992,7 +992,7 @@ function DuplicatesDryRunDrawer({
   onExecute,
   onClose
 }: {
-  plan: DuplicatesDryRunPlan;
+  plan: DuplicatesPreviewPlan;
   open: boolean;
   busy: boolean;
   result: DuplicatesExecuteResponse | null;
@@ -1020,7 +1020,7 @@ function DuplicatesDryRunDrawer({
           </button>
         </div>
 
-        <div className="dry-run">
+        <div className="preview-body">
           <div className="estimate">
             <span>Storage to reclaim</span>
             <strong>{formatBytes(plan.total_reclaimable_bytes)}</strong>

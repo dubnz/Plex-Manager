@@ -1,4 +1,4 @@
-import type { DeleteDryRunPlan, MediaItem, StatusResponse } from "../types";
+import type { DeletePreviewPlan, MediaItem, StatusResponse } from "../types";
 
 export const mockStatus: StatusResponse = {
   demo_mode: true,
@@ -92,12 +92,12 @@ export const mockMedia: MediaItem[] = [
   }
 ];
 
-export function buildMockDryRun(items: MediaItem[]): DeleteDryRunPlan {
+export function buildMockPreview(items: MediaItem[]): DeletePreviewPlan {
   return {
     requires_confirmation: true,
     storage_reclaim_estimate_bytes: items.reduce((sum, item) => sum + item.file_size_bytes, 0),
     global_warnings: [
-      "Dry-run only: no destructive action has been performed.",
+      "Preview only: no destructive action has been performed.",
       "Demo preview generated locally because the API is unavailable."
     ],
     items: items.map((item) => ({
@@ -111,19 +111,19 @@ export function buildMockDryRun(items: MediaItem[]): DeleteDryRunPlan {
         {
           service: item.manager_kind === "sonarr" ? "Sonarr" : "Radarr",
           action: item.manager_kind === "sonarr" ? "delete_series" : "delete_movie",
-          dry_run: true,
+          simulated: true,
           detail: `Would delete ${item.title} with files after explicit confirmation.`
         },
         {
           service: "Seerr",
           action: "mark_unavailable",
-          dry_run: true,
+          simulated: true,
           detail: "Would mark unavailable only after the manager delete succeeds."
         },
         {
           service: "Plex",
           action: "refresh_library",
-          dry_run: true,
+          simulated: true,
           detail: "Would refresh the selected Plex section."
         }
       ]

@@ -23,7 +23,7 @@ class RadarrClient(HttpApiClient):
 
     async def delete_movie_file(self, movie_file_id: int, *, confirm: bool = False) -> None:
         if not confirm:
-            raise RuntimeError("Radarr delete_movie_file requires an explicit confirm=True call after dry-run.")
+            raise RuntimeError("Radarr delete_movie_file requires an explicit confirm=True call after preview.")
         # Deletes a single movie file from disk, leaving the movie entry intact.
         # https://radarr.video/docs/api/#/MovieFile/delete_api_v3_moviefile__id_
         await self.request("DELETE", f"/api/v3/moviefile/{movie_file_id}")
@@ -48,7 +48,7 @@ class RadarrClient(HttpApiClient):
         confirm: bool = False,
     ) -> None:
         if not confirm:
-            raise RuntimeError("Radarr delete_movie requires an explicit confirm=True call after dry-run.")
+            raise RuntimeError("Radarr delete_movie requires an explicit confirm=True call after preview.")
         # Official docs fetched 2026-06-22:
         # https://radarr.video/docs/api/
         await self.request(

@@ -18,19 +18,19 @@ def test_media_route_returns_seeded_demo_items(monkeypatch, tmp_path) -> None:
     assert payload["items"][0]["library"] == "Movies"
 
 
-def test_delete_dry_run_route_uses_cached_items(monkeypatch, tmp_path) -> None:
+def test_delete_preview_route_uses_cached_items(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("PLEX_MANAGER_DEMO_MODE", "true")
     monkeypatch.setenv("DB_PATH", str(tmp_path / "demo.db"))
 
     from app.main import create_app
 
     client = TestClient(create_app())
-    response = client.post("/api/actions/delete/dry-run", json={"media_item_ids": [1], "delete_files": True})
+    response = client.post("/api/actions/delete/preview", json={"media_item_ids": [1], "delete_files": True})
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["requires_confirmation"] is True
-    assert payload["items"][0]["steps"][0]["dry_run"] is True
+    assert payload["items"][0]["steps"][0]["simulated"] is True
 
 
 def test_sync_route_blocks_placeholder_plex_token(monkeypatch, tmp_path) -> None:

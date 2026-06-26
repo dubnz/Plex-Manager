@@ -9,9 +9,9 @@ from app.clients.sonarr import SonarrClient
 from app.core.config import Settings
 from app.models import (
     DuplicateItem,
-    DuplicatesDryRunItem,
-    DuplicatesDryRunPlan,
-    DuplicatesDryRunStep,
+    DuplicatesPreviewItem,
+    DuplicatesPreviewPlan,
+    DuplicatesPreviewStep,
     DuplicatesExecuteItem,
     DuplicatesExecuteResponse,
 )
@@ -29,10 +29,10 @@ def _is_local_path(path: str, settings: Settings) -> bool:
     return bool(settings.local_media_paths) and under_local and not under_protected
 
 
-async def build_duplicates_dry_run_plan(
+async def build_duplicates_preview_plan(
     settings: Settings,
     items: list[DuplicateItem],
-) -> DuplicatesDryRunPlan:
+) -> DuplicatesPreviewPlan:
     """Build a precise, non-mutating plan for removing local duplicate files.
 
     Deletion is per-file via the Sonarr/Radarr APIs, plus an unmonitor step so
@@ -49,7 +49,7 @@ async def build_duplicates_dry_run_plan(
         else None
     )
 
-    plan_items: list[DuplicatesDryRunItem] = []
+    plan_items: list[DuplicatesPreviewItem] = []
     for item in items:
         if item.media_type == "movie":
             plan_items.append(await _movie_plan(item, radarr))
@@ -57,11 +57,11 @@ async def build_duplicates_dry_run_plan(
             plan_items.append(await _show_plan(item, sonarr))
 
     total = sum(i.reclaimable_bytes for i in plan_items)
-    return DuplicatesDryRunPlan(items=plan_items, total_reclaimable_bytes=total)
+    return DuplicatesPreviewPlan(items=plan_items, total_reclaimable_bytes=total)
 
 
-async def _show_plan(item: DuplicateItem, sonarr: SonarrClient | None) -> DuplicatesDryRunItem:
-    steps: list[DuplicatesDryRunStep] = []
+async def _show_plan(item: DuplicateItem, sonarr: SonarrClient | None) -> DuplicatesPreviewItem:
+    steps: list[DuplicatesPreviewStep] = []
     warnings: list[str] = []
 
     if item.manager_kind != "sonarr" or item.manager_id is None:
@@ -97,7 +97,7 @@ async def _show_plan(item: DuplicateItem, sonarr: SonarrClient | None) -> Duplic
             continue
         if file_id is not None:
             file_ids_seen.add(file_id)
-        steps.append(DuplicatesDryRunStep(
+        steps.append(DuplicatesPreviewStep(
             service="Sonarr",
             action="delete_episode_file",
             detail=(
@@ -108,7 +108,7 @@ async def _show_plan(item: DuplicateItem, sonarr: SonarrClient | None) -> Duplic
         ))
 
     if unmonitor_episode_ids:
-        steps.append(DuplicatesDryRunStep(
+        steps.append(DuplicatesPreviewStep(
             service="Sonarr",
             action="unmonitor_episodes",
             detail=(
@@ -120,8 +120,8 @@ async def _show_plan(item: DuplicateItem, sonarr: SonarrClient | None) -> Duplic
     return _finish_item(item, steps, warnings)
 
 
-async def _movie_plan(item: DuplicateItem, radarr: RadarrClient | None) -> DuplicatesDryRunItem:
-    steps: list[DuplicatesDryRunStep] = []
+async def _movie_plan(item: DuplicateItem, radarr: RadarrClient | None) -> DuplicatesPreviewItem:
+    steps: list[DuplicatesPreviewStep] = []
     warnings: list[str] = []
 
     if item.manager_kind != "radarr" or item.manager_id is None:
@@ -143,7 +143,7 @@ async def _movie_plan(item: DuplicateItem, radarr: RadarrClient | None) -> Dupli
 
     for dv in item.duplicate_versions:
         file_label = f"movieFile {movie_file_id}" if movie_file_id else "movieFile (unresolved)"
-        steps.append(DuplicatesDryRunStep(
+        steps.append(DuplicatesPreviewStep(
             service="Radarr",
             action="delete_movie_file",
             detail=(
@@ -152,7 +152,7 @@ async def _movie_plan(item: DuplicateItem, radarr: RadarrClient | None) -> Dupli
                 f"keeping NAS copy ({dv.nas_quality})."
             ),
         ))
-    steps.append(DuplicatesDryRunStep(
+    steps.append(DuplicatesPreviewStep(
         service="Radarr",
         action="unmonitor_movie",
         detail="Would unmonitor the movie so Radarr will not re-download the deleted file.",
@@ -163,23 +163,23 @@ async def _movie_plan(item: DuplicateItem, radarr: RadarrClient | None) -> Dupli
 
 def _finish_item(
     item: DuplicateItem,
-    steps: list[DuplicatesDryRunStep],
+    steps: list[DuplicatesPreviewStep],
     warnings: list[str],
-) -> DuplicatesDryRunItem:
+) -> DuplicatesPreviewItem:
     if steps:  # only add follow-up steps when there is something to delete
-        steps.append(DuplicatesDryRunStep(
+        steps.append(DuplicatesPreviewStep(
             service="Plex",
             action="refresh_library",
             detail=f"Would refresh Plex library '{item.library}'. NAS copy remains available.",
         ))
         nas_sample = item.duplicate_versions[0].nas_path if item.duplicate_versions else ""
-        steps.append(DuplicatesDryRunStep(
+        steps.append(DuplicatesPreviewStep(
             service="Info",
             action="nas_copy_retained",
             detail=f"NAS copies are KEPT (protected path), e.g. {nas_sample}",
         ))
 
-    return DuplicatesDryRunItem(
+    return DuplicatesPreviewItem(
         media_item_id=item.id,
         title=item.title,
         library=item.library,
@@ -235,14 +235,14 @@ async def execute_duplicates_plan(
     )
 
 
-async def _refresh_plex(settings: Settings, library: str, plex_sections: dict[str, str], steps: list[DuplicatesDryRunStep], warnings: list[str]) -> None:
+async def _refresh_plex(settings: Settings, library: str, plex_sections: dict[str, str], steps: list[DuplicatesPreviewStep], warnings: list[str]) -> None:
     section_key = plex_sections.get(library)
     if not section_key:
         warnings.append(f"Plex library '{library}' not found; skipped refresh.")
         return
     try:
         await PlexClient(settings.plex_url, settings.plex_token).refresh_library_section(section_key)
-        steps.append(DuplicatesDryRunStep(service="Plex", action="refresh_library", dry_run=False,
+        steps.append(DuplicatesPreviewStep(service="Plex", action="refresh_library", simulated=False,
                                           detail=f"Refreshed Plex library '{library}'. NAS copy remains available."))
     except Exception as exc:
         warnings.append(f"Plex refresh failed: {type(exc).__name__}: {exc}")
@@ -255,7 +255,7 @@ async def _execute_show(
     sonarr: SonarrClient | None,
     plex_sections: dict[str, str],
 ) -> DuplicatesExecuteItem:
-    steps: list[DuplicatesDryRunStep] = []
+    steps: list[DuplicatesPreviewStep] = []
     warnings: list[str] = []
     deleted_paths: list[str] = []
     reclaimed = 0
@@ -311,15 +311,15 @@ async def _execute_show(
         deleted_paths.append(resolved_path)
         reclaimed += dv.local_size_bytes
         unmonitor_ids.update(local_episode_ids)
-        steps.append(DuplicatesDryRunStep(
-            service="Sonarr", action="delete_episode_file", dry_run=False,
+        steps.append(DuplicatesPreviewStep(
+            service="Sonarr", action="delete_episode_file", simulated=False,
             detail=f"{dv.identity}: deleted episodeFile {file_id} (local {dv.local_quality}, {human_size(dv.local_size_bytes)}).",
         ))
 
     if unmonitor_ids:
         try:
             await sonarr.set_episodes_monitored(sorted(unmonitor_ids), monitored=False)
-            steps.append(DuplicatesDryRunStep(service="Sonarr", action="unmonitor_episodes", dry_run=False,
+            steps.append(DuplicatesPreviewStep(service="Sonarr", action="unmonitor_episodes", simulated=False,
                                               detail=f"Unmonitored {len(unmonitor_ids)} episode(s) so Sonarr will not re-download them."))
         except Exception as exc:
             warnings.append(f"Unmonitor failed: {type(exc).__name__}: {exc}")
@@ -338,7 +338,7 @@ async def _execute_movie(
     radarr: RadarrClient | None,
     plex_sections: dict[str, str],
 ) -> DuplicatesExecuteItem:
-    steps: list[DuplicatesDryRunStep] = []
+    steps: list[DuplicatesPreviewStep] = []
     warnings: list[str] = []
 
     if item.manager_kind != "radarr" or item.manager_id is None or radarr is None:
@@ -369,13 +369,13 @@ async def _execute_movie(
         deleted_paths.append(path)
         dv = next((d for d in item.duplicate_versions if d.local_path == path), None)
         reclaimed += dv.local_size_bytes if dv else 0
-        steps.append(DuplicatesDryRunStep(service="Radarr", action="delete_movie_file", dry_run=False,
+        steps.append(DuplicatesPreviewStep(service="Radarr", action="delete_movie_file", simulated=False,
                                           detail=f"Deleted movieFile {f['id']} (local {dv.local_quality if dv else '?'}, {human_size(dv.local_size_bytes if dv else 0)})."))
 
     if deleted_paths:
         try:
             await radarr.set_movies_monitored([item.manager_id], monitored=False)
-            steps.append(DuplicatesDryRunStep(service="Radarr", action="unmonitor_movie", dry_run=False,
+            steps.append(DuplicatesPreviewStep(service="Radarr", action="unmonitor_movie", simulated=False,
                                               detail="Unmonitored the movie so Radarr will not re-download it."))
         except Exception as exc:
             warnings.append(f"Unmonitor failed: {type(exc).__name__}: {exc}")

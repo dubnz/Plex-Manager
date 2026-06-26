@@ -60,30 +60,30 @@ class DuplicatesListResponse(BaseModel):
     demo_mode: bool
 
 
-class DuplicatesDryRunRequest(BaseModel):
+class DuplicatesPreviewRequest(BaseModel):
     media_item_ids: list[int] = Field(min_length=1)
 
 
-class DuplicatesDryRunStep(BaseModel):
+class DuplicatesPreviewStep(BaseModel):
     service: str
     action: str
-    dry_run: bool = True
+    simulated: bool = True
     detail: str
 
 
-class DuplicatesDryRunItem(BaseModel):
+class DuplicatesPreviewItem(BaseModel):
     media_item_id: int
     title: str
     library: str
     manager_kind: str
     episode_count: int
     reclaimable_bytes: int
-    steps: list[DuplicatesDryRunStep]
+    steps: list[DuplicatesPreviewStep]
     warnings: list[str] = Field(default_factory=list)
 
 
-class DuplicatesDryRunPlan(BaseModel):
-    items: list[DuplicatesDryRunItem]
+class DuplicatesPreviewPlan(BaseModel):
+    items: list[DuplicatesPreviewItem]
     total_reclaimable_bytes: int
     global_warnings: list[str] = Field(default_factory=list)
 
@@ -99,7 +99,7 @@ class DuplicatesExecuteItem(BaseModel):
     manager_kind: str
     deleted_file_count: int
     reclaimed_bytes: int
-    steps: list[DuplicatesDryRunStep]
+    steps: list[DuplicatesPreviewStep]
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -116,41 +116,41 @@ class MediaListResponse(BaseModel):
     demo_mode: bool
 
 
-class DeleteDryRunRequest(BaseModel):
+class DeletePreviewRequest(BaseModel):
     media_item_ids: list[int] = Field(min_length=1)
     delete_files: bool = True
 
 
-class DeleteExecuteRequest(DeleteDryRunRequest):
+class DeleteExecuteRequest(DeletePreviewRequest):
     confirmation: str
 
 
-class DeleteDryRunStep(BaseModel):
+class DeletePreviewStep(BaseModel):
     service: str
     action: str
-    dry_run: bool = True
+    simulated: bool = True
     detail: str
 
 
-class DeleteDryRunItem(BaseModel):
+class DeletePreviewItem(BaseModel):
     media_item_id: int
     title: str
     library: str
     manager_kind: str
     file_size_bytes: int
-    steps: list[DeleteDryRunStep]
+    steps: list[DeletePreviewStep]
     warnings: list[str] = Field(default_factory=list)
 
 
-class DeleteDryRunPlan(BaseModel):
-    items: list[DeleteDryRunItem]
+class DeletePreviewPlan(BaseModel):
+    items: list[DeletePreviewItem]
     storage_reclaim_estimate_bytes: int
     requires_confirmation: bool = True
     global_warnings: list[str] = Field(default_factory=list)
 
 
 class DeleteExecuteResponse(BaseModel):
-    items: list[DeleteDryRunItem]
+    items: list[DeletePreviewItem]
     deleted_count: int
     storage_reclaim_estimate_bytes: int
     global_warnings: list[str] = Field(default_factory=list)

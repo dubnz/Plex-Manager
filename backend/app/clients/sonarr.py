@@ -29,7 +29,7 @@ class SonarrClient(HttpApiClient):
 
     async def delete_episode_file(self, episode_file_id: int, *, confirm: bool = False) -> None:
         if not confirm:
-            raise RuntimeError("Sonarr delete_episode_file requires an explicit confirm=True call after dry-run.")
+            raise RuntimeError("Sonarr delete_episode_file requires an explicit confirm=True call after preview.")
         # Deletes a single episode file from disk, leaving the series intact.
         # https://sonarr.tv/docs/api/#/EpisodeFile/delete_api_v3_episodefile__id_
         await self.request("DELETE", f"/api/v3/episodefile/{episode_file_id}")
@@ -54,7 +54,7 @@ class SonarrClient(HttpApiClient):
         confirm: bool = False,
     ) -> None:
         if not confirm:
-            raise RuntimeError("Sonarr delete_series requires an explicit confirm=True call after dry-run.")
+            raise RuntimeError("Sonarr delete_series requires an explicit confirm=True call after preview.")
         # Official docs fetched 2026-06-22:
         # https://sonarr.tv/docs/api/
         await self.request(
